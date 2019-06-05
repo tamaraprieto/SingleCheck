@@ -1,0 +1,10 @@
+*.out
+*.png
+*.svg
+*.swp
+*.html
+*.log
+*.txt
+*.Rhistory
+*.idx
+*.RData

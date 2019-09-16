@@ -5,8 +5,6 @@
 
 import re
 import sys
-import tabix
-import linecache
 import math
 
 if sys.version_info[0] < 3:
@@ -18,33 +16,33 @@ if len(sys.argv) < 2:
 sample=sys.argv[1]
 workdir=sys.argv[2]
 depth=sys.argv[3]
-suffix=".mpileup"
-mpileup_name= workdir + sample + "." + depth + suffix
-print("Loading data frame ",mpileup_name,"...\n") 
+alpha=sys.argv[4]
+chrom=sys.argv[5]
+suffix=".txt"
+file_name= workdir + "CorrMag." + sample + ".chr"+ chrom +"." + depth + "." + alpha + suffix
+print("Loading data frame ",file_name,"...\n") 
 
 n=0
-m=0
-alpha=1000
 mult_sum=0
 first_sum=0
-with open(mpileup_name, mode='r') as f:
-    for first in f: 
-        first_cols=re.split(r'\t+', first)
-        m+=1 # I should keep moving in the same way even if I do not count positions without a defined base
-        if (first_cols[2] != 'N'): # Pass positions with masked reference
+num=0
+with open(file_name, mode='r') as f:
+    for line in f: 
+        line_cols=re.split(r'\t+', line)
+        if (line_cols[0] != 'N' and line_cols[1] != 'N' and len(line_cols)==4): # Pass positions with masked reference
+            first_sum+=int(line_cols[2])
+            mult=(int(line_cols[2]) * int(line_cols[3]))
+            mult_sum+=mult
             n+=1
-            second=linecache.getline(mpileup_name, m+alpha)
-            sum=int(first_cols[3])
-            first_sum+=sum
-            if second:
-                second_cols=re.split(r'\t+', second)
-                mult=(int(first_cols[3]) * int(second_cols[3]))
-                mult_sum+=mult
+            num+=1
+        elif (line_cols[0] != 'N' and len(line_cols)==2):
+            first_sum+=int(line_cols[1])
+            num+=1
 f.close()
-a=mult_sum/(n-alpha)
-b=math.pow(first_sum/n,2)
+a=mult_sum/n
+b=math.pow(first_sum/num,2)
 autocorrelation=(a-b)/b
 print(autocorrelation)
-out = open(workdir+"Autocorrelation."+sample+"."+depth+"."+alpha+".txt","w")
+out = open(workdir + "Autocorrelation." + sample + ".chr" + chrom +"."+ depth + "." + alpha + ".txt","w")
 out.write(str(autocorrelation)+"\n")
 out.close()

@@ -25,18 +25,12 @@ fi
 
 module load gcc/6.4.0 samtools/1.9
 samtools index ${WORKDIR}/${SAMPLE}.${DEPTH}X.filtered.bam
-# Add the coverage counts at each position of each bed interval
-# It returns the sum of per-base read depths for each genomic region!!
 samtools bedcov ${WORKDIR}/${REF}.${size}bp.bed \
 	${WORKDIR}/${SAMPLE}.${DEPTH}X.filtered.bam  > \
 	${WORKDIR}/${SAMPLE}.${DEPTH}X.${size}bp.bed
 
-# I COMMENTED THE LINES BELOW TO RUN THE GINI PER WINDOW, BUT I HAVE TO UNCOMMMENT THEM
 module purge
 module load miniconda2/4.5.11
 source activate /mnt/netapp2/Store_uni/home/uvi/be/tpf/conda/python3
-python ${SCRIPTDIR}/CoefficientOfVariation.py $SAMPLE $WORKDIR $DEPTH $size
+python ${SCRIPTDIR}/OurMADImplementation.py $SAMPLE $WORKDIR $DEPTH $size
 source deactivate
-
-#module load gcc/6.4.0 R/3.5.3
-#Rscript ${SCRIPTDIR}/GiniIndexPerWindow.R $SAMPLE $WORKDIR $DEPTH $size

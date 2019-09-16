@@ -10,7 +10,13 @@
 source ReadConfig.sh $1
 SAMPLE=$(sed "${SLURM_ARRAY_TASK_ID}q;d" ${ORIDIR}/${SAMPLELIST})
 echo $SAMPLE
-suffix=".100readlengthfixed"
+
+#read_length=100
+read_length=151
+suffix="."${read_length}"readlengthfixed"
+
+#bam_suffix=".sorted"
+bam_suffix=".downsampled"
 
 module load picard/2.18.14
 
@@ -38,8 +44,8 @@ accuracy=$(awk -v num=$num 'BEGIN{print 0.01*10^-num}')
 echo "Downsampling following "${strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X. Downsampling probability: "$probability". Accuracy: "${accuracy}
 # First time I ran it was without CREATE_INDEX=false so I did not created the indexed files
 java -jar $EBROOTPICARD/picard.jar DownsampleSam \
-	INPUT=${WORKDIR}/${SAMPLE}.sorted.bam \
-	OUTPUT=${WORKDIR}/${SAMPLE}.sorted.${downsampling_depth}X.bam \
+	INPUT=${WORKDIR}/${SAMPLE}${bam_suffix}.bam \
+	OUTPUT=${WORKDIR}/${SAMPLE}${bam_suffix}.${downsampling_depth}X.bam \
 	RANDOM_SEED=1 \
 	PROBABILITY=${probability} \
 	STRATEGY=$strategy \
@@ -51,4 +57,4 @@ java -jar $EBROOTPICARD/picard.jar DownsampleSam \
 # We performed downsampling based on the total number of reads sequenced but now we want to check the uniformity on the autosomes and sex chromosomes. In this case the single cells come from a woman so we do not expect reads from Y chromosome. 
 chrom_to_keep=$(cat ${RESDIR}/${REF}.fai | head -n 23 | awk '{print $1}' | tr -s "\n" " " | sed 's/ $//')
 module load gcc/6.4.0 samtools/1.9
-samtools view -hb ${WORKDIR}/${SAMPLE}.sorted.${downsampling_depth}X.bam ${chrom_to_keep} > ${WORKDIR}/${SAMPLE}.${downsampling_depth}X.filtered.bam
+samtools view -hb ${WORKDIR}/${SAMPLE}${bam_suffix}.${downsampling_depth}X.bam ${chrom_to_keep} > ${WORKDIR}/${SAMPLE}.${downsampling_depth}X.filtered.bam

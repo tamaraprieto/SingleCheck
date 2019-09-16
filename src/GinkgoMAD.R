@@ -23,5 +23,6 @@ for(i in 1:length(cellIDs)){
         a[i, 1] = mad(normal[-1    , cell] - normal[1:(l-1), cell])   # same as diff()
     }
 a
-write.table(x=a,file=paste("MAD.",dataset,".txt",sep=""),quote=FALSE, sep="\t")
+write.table(x=paste(a,size, sep="\t"),file=paste("../MAD.",size,".txt",sep=""),col.names=FALSE,quote=FALSE, sep="\t") # HDF
+#write.table(x=a,file=paste("MAD.",dataset,".txt",sep=""),col.names=FALSE,quote=FALSE, sep="\t") # WANG
 

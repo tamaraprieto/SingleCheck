@@ -11,12 +11,14 @@ source ReadConfig.sh $1
 SAMPLE=$(sed "${SLURM_ARRAY_TASK_ID}q;d" ${ORIDIR}/${SAMPLELIST})
 echo $SAMPLE
 
-#read_length=100
-read_length=151
+read_length=100 # WANG
+read_length=125 # HUANG-BULK
+#read_length=150 # HUANG-MB-PP
+#read_length=151 HDF
 suffix="."${read_length}"readlengthfixed"
 
-#bam_suffix=".sorted"
-bam_suffix=".downsampled"
+bam_suffix=".sorted" # WANG and HUANG
+#bam_suffix=".downsampled" # HDF
 
 module load picard/2.18.14
 
@@ -52,9 +54,17 @@ java -jar $EBROOTPICARD/picard.jar DownsampleSam \
 	CREATE_INDEX=true \
 	ACCURACY=$accuracy
 
-
 # Remove unplaced scaffolds
-# We performed downsampling based on the total number of reads sequenced but now we want to check the uniformity on the autosomes and sex chromosomes. In this case the single cells come from a woman so we do not expect reads from Y chromosome. 
-chrom_to_keep=$(cat ${RESDIR}/${REF}.fai | head -n 23 | awk '{print $1}' | tr -s "\n" " " | sed 's/ $//')
+# We performed downsampling based on the total number of reads sequenced but now we want to check the uniformity on the autosomes and sex chromosomes.
+# We will interrogate uniformity only in diploid chromsomes
+# We keep XX in females but avoid it in males
+# Careful!!!For HDF I used also chromosome X
+if [ $GENDER=="XX" ]
+then
+num=23
+else
+num=22
+fi 
+chrom_to_keep=$(cat ${RESDIR}/${REF}.fai | head -n ${num} | awk '{print $1}' | tr -s "\n" " " | sed 's/ $//')
 module load gcc/6.4.0 samtools/1.9
 samtools view -hb ${WORKDIR}/${SAMPLE}${bam_suffix}.${downsampling_depth}X.bam ${chrom_to_keep} > ${WORKDIR}/${SAMPLE}.${downsampling_depth}X.filtered.bam

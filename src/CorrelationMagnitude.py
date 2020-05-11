@@ -44,5 +44,5 @@ b=math.pow(first_sum/num,2)
 autocorrelation=(a-b)/b
 print(autocorrelation)
 out = open(workdir + "Autocorrelation." + sample + ".chr" + chrom +"."+ depth + "." + alpha + ".txt","w")
-out.write(str(autocorrelation)+"\n")
+out.write(str(sample)+"\t"+str(alpha)+"\t"+str(autocorrelation)+"\n")
 out.close()

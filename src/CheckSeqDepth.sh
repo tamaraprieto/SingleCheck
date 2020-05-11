@@ -12,11 +12,17 @@ SAMPLE=$(sed "${SLURM_ARRAY_TASK_ID}q;d" ${ORIDIR}/${SAMPLELIST})
 echo $SAMPLE
 
 downsampling_depth=$2
-readlength=100 # WANG
-readlength=125 # BULK-HUANG
-readlength=150 # MB and PP HUANG
+#readlength=100 # WANG
+#readlength=125 # BULK-HUANG
+#readlength=150 # MB and PP HUANG
+if [ -z "$3" ]
+  then
+    echo "No read length supplied"
+    exit
+else
+    readlength=$3
+fi
 suffix="."${readlength}"readlengthfixed"
-
 module purge
 module load picard/2.18.14
 java -jar $EBROOTPICARD/picard.jar \

@@ -20,9 +20,10 @@ then
 samtools mpileup \
 	--no-BAQ \
 	--fasta-ref ${RESDIR}/${REF}.fa \
-	--aa \
+	-aa \
 	-q 20 \
-	${WORKDIR}/${SAMPLE}.${DEPTH}X.filtered.bam > ${WORKDIR}/${SAMPLE}.chr${CHR}.${DEPTH}.mpileup
+	${WORKDIR}/${SAMPLE}.${DEPTH}X.filtered.bam > \
+	${WORKDIR}/${SAMPLE}.chr${CHR}.${DEPTH}.mpileup
 #         --region ${CHR} \
 fi
 

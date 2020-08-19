@@ -15,11 +15,22 @@ size=$3
 
 module purge
 module load gcccore/6.4.0 bedtools/2.27.1
-# The following commented code can be problematic
+
+if [ "$GENDER" = "XX" ]
+then
+        num=23
+        pattern_match="^[1-9|X]"
+else
+        num=22
+        pattern_match="^[1-9]"
+fi
+
+# The following code can be problematic
 # Pipe and redirect symbols
 if [[ ! -f ${WORKDIR}/${REF}.${size}bp.bed ]]
 then
-awk '{print $1"\t"$2}' ${RESDIR}/${REF}.fai | grep "^[0-9|X]" > ${WORKDIR}/${REF}.txt
+awk '{print $1"\t"$2}' ${RESDIR}/${REF}.fai | \
+	grep "$pattern_match" > ${WORKDIR}/${REF}.txt
 bedtools makewindows -w ${size} -g ${WORKDIR}/${REF}.txt| awk '{print $1"\t"$2"\t"$3}' >${WORKDIR}/${REF}.${size}bp.bed
 fi
 

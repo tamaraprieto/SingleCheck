@@ -25,6 +25,7 @@ input_name= workdir + sample + "." + depth + "X." + size + suffix
 print("Loading data frame ",input_name,"...\n") 
 out = open(workdir+"OurMAD."+sample+"."+depth+"."+size+".txt","w")
 
+# 1. Calculatw mean read count across bins
 sumcov=0
 n=0
 with open(input_name, mode='r') as f:
@@ -35,8 +36,10 @@ with open(input_name, mode='r') as f:
         n+=1
 f.close()
 mean_cov=sumcov/n
-print("Mean cell coverage per window:", mean_cov)
+print("Mean read count across bins:", mean_cov)
 
+# 2, Normalize read counts in each bin by the mean coverage
+# 3. Calculate pairwise differences in read counts between neighboring bins
 sumnorm=0
 n=0
 vector_diff=[]
@@ -45,9 +48,11 @@ with open(input_name, mode='r') as f:
     for line in f:
         cols=re.split(r'\t+', line)
         fourth=int(cols[3])
+        # 2.
         norm=fourth/mean_cov
         if ( n==0 ):
             prev=norm
+        # 3. 
         else:
             value=prev-norm
             vector_diff.append(value)
@@ -55,6 +60,7 @@ with open(input_name, mode='r') as f:
         n+=1
 f.close()
 
+# Calculate MAD. median(abs(x-median(x)))
 vector_diff_median=statistics.median(vector_diff)
 array=numpy.array(vector_diff)
 abs_vector=abs(array-vector_diff_median)

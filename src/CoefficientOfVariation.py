@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+# Calculate Coefficient of variation from coverage array
 # Written by Tamara Prieto
 # May 2019 at Uvigo
 

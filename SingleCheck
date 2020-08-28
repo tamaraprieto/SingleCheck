@@ -20,7 +20,7 @@ echo "SingleCheck v.0.1"
             -a  set alpha for calculating the autocorrelation (default: 1000)"
 
 	WSIZE=1
-	ALPHA=1000
+	ALPHA=1
 	SUFFIX="X.filtered"
 
 	while getopts ':hwa:' option; do
@@ -69,11 +69,11 @@ echo "Single cell being analyzed: "$NAME
 #                        LOAD MODULES                                      #
 ############################################################################
 	
-	module purge
-	module load samtools/1.10
-	module load gcc/6.4.0 R/3.6.3
-        module load miniconda3/4.8.2
-        source activate /mnt/netapp1/posadalab/APPS/CommonCondaEnvironments/mosdepth
+	module purge 2> /dev/null
+	module load samtools/1.10 2> /dev/null
+	module load gcc/6.4.0 R/3.6.3 2> /dev/null
+        module load miniconda3/4.8.2 2> /dev/null
+        source activate /mnt/netapp1/posadalab/APPS/CommonCondaEnvironments/mosdepth 2> /dev/null
 
 # ///////// CONDA ENVIRONMENTS MISSING, CREATE A SINGLE ONE
 
@@ -84,11 +84,12 @@ echo "Single cell being analyzed: "$NAME
 
         if [ "$GENDER" = "XX" ]
         then
-                num=23
                 pattern_match="^[1-9|X]"
+	elif [ "$GENDER" = "XY" ]
+	then
+		pattern_match="^[1-9]"
         else
-                num=22
-                pattern_match="^[1-9]"
+                pattern_match="^.*"
         fi
 
 
@@ -97,8 +98,10 @@ echo "Single cell being analyzed: "$NAME
 #                        CALCULATE COVERAGE BIAS                           #
 ############################################################################
 
+
 if [[ ! -f ${NAME}.${WSIZE}.regions.bed.gz ]]
 then
+echo "> Running mosdepth"
         # the number of floats I need for mosdepth depends on the window size
 	# wc -c gives an extra character (\n). window size of 100 (3 chars) -> minimum coverage will be 0.01 (2 decs)
         precision=$(echo $WSIZE | wc -c | awk '{print $1-2}')
@@ -108,18 +111,20 @@ then
         MOSDEPTH_PRECISION=${precision} mosdepth \
                 -t $THREADS \
                 --fast-mode \
+		--no-per-base \
                 --by $WSIZE \
                 --flag $FLAGTOFILTEROUT \
                 --mapq $MAPQUAL \
                 ${NAME}.${WSIZE} \
                 ${NAME}.bam
-# --no-per-base \
         # Output .regions.bed.gz contains mean base depth per window
 	rm ${NAME}.${WSIZE}.mosdepth* # remove extra files created by mosdepth
 
 	conda deactivate
 fi
 
+
+echo "> Running mpileup"
 #if [[ ! -f ${NAME}.mpileup ]]
 #then
 # ////// Read about mpileup paralelization or do it only in one chromosome (-region)
@@ -137,7 +142,7 @@ samtools mpileup \
 #fi
 
 
-echo "> Calculate gini and cv"
+echo "> Calculating gini and cv"
 
 if [[ ! -f ${NAME}.${WSIZE}.freqs.txt ]]
 then
@@ -154,7 +159,7 @@ fi
 Rscript /mnt/netapp2/posadalab2/uvibetpf/SCCoverageUniformity/scripts/src/GiniIndex.R ${NAME}.${WSIZE}
 Rscript /mnt/netapp2/posadalab2/uvibetpf/SCCoverageUniformity/scripts/src/CoefficientOfVariation.R ${NAME}.${WSIZE}
 
-echo "> Calculate autocorrelation"
+echo "> Calculating autocorrelation"
 
 #if [[ ! -f ${NAME}.${ALPHA}.shiftedcov.txt ]]
 #then
@@ -177,7 +182,7 @@ Rscript /mnt/netapp2/posadalab2/uvibetpf/SCCoverageUniformity/scripts/src/Autoco
 ##rm ${NAME}.${ALPHA}.shiftedcov.txt
 
 
-echo "> Calculate MAD"
+echo "> Calculating MAD"
 
 #if [[ ! -f ${NAME}.${WSIZE}.contiguous.txt ]]
 #then
@@ -213,14 +218,15 @@ Rscript /mnt/netapp2/posadalab2/uvibetpf/SCCoverageUniformity/scripts/src/MAD.R 
 
 
 # ///// Run metaphyler only if the number of unmapped reads is high?
+echo "> METAPHYLER"
+samtools view -f 0x4 ${WORKDIR}/${SAMPLE} | awk '{OFS="\t"; print ">"$1"\n"$10}' > ${NAME}.unmapped.fasta
+~/apps/Metaphyler/MetaPhylerSRV0.115/metaphyler.pl 2 ${NAME}.unmapped.fasta ${NAME}
 
-#echo "> METAPHYLER"
-#samtools view -f 0x4 ${WORKDIR}/${SAMPLE} | awk '{OFS="\t"; print ">"$1"\n"$10}' > ${WORKDIR}/${SAMPLE}.unmapped.fasta
-#~/apps/Metaphyler/MetaPhylerSRV0.115/metaphyler.pl 2 ${WORKDIR}/${SAMPLE}.unmapped.fasta ${WORKDIR}/${SAMPLE}
 #
 ## Get the number of bases which are aligned, soft-clipped or unmapped (only count only primary aligments)
 #aligned_soft_bases=$(samtools view -F 256 $WORKDIR/$SAMPLE.dedup.bam | cut -f10 | awk '{total+=length}END{print total}')
 ## Get the number of bases which are hard-clipped
+# /// avoid counting secondary?
 #hard_bases=$(samtools view $WORKDIR/$SAMPLE.dedup.bam | cut -f6 | grep H | sed 's/\([0-9]*\)\([A-Z]\)/\1\2\n/g' | grep -v "^$" | grep H | sed 's/H//' | awk '{sum+=$1}END{print sum}')
 #if [ -z "$hard_bases" ];then
 #	hard_bases=0
@@ -233,7 +239,10 @@ Rscript /mnt/netapp2/posadalab2/uvibetpf/SCCoverageUniformity/scripts/src/MAD.R 
 #
 #echo "> CREATE QC FILE"
 #rm ${WORKDIR}/${SAMPLE}_QC.txt
-#MT=$(samtools idxstats ${WORKDIR}/${SAMPLE}.dedup.bam | grep -e "^MT" -e "^chrM" | awk '{print $3}')
+
+# ////// index bam or require to be indexed
+samtools index ${NAME}.bam
+MT=$(samtools idxstats ${NAME}.bam | grep -e "^MT" -e "^chrM" | awk '{print $3}')
 #genome=$(cut -f 5 ${WORKDIR}/${SAMPLE}_genome.bed | head -1)
 #breadth=$(head -1 ${WORKDIR}/${SAMPLE}_genome.bed | awk '{print (1-$5)*100}')
 #class=$(awk '{if ($1 !~ "{") print $0}' ${WORKDIR}/${SAMPLE}.genus.tab | grep -v "^@" | awk '{if ($5 >= 98) print $1}' | tr -s '\n' ',' | sed 's/,$/\n/')

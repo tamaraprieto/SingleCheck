@@ -60,17 +60,17 @@ java -jar $EBROOTPICARD/picard.jar DownsampleSam \
 	CREATE_INDEX=true \
 	ACCURACY=$accuracy
 
-# Remove unplaced scaffolds
-# We performed downsampling based on the total number of reads sequenced but now we want to check the uniformity on the autosomes and sex chromosomes.
-# We will interrogate uniformity only in diploid chromsomes
-# We keep XX in females but avoid it in males
-# Careful!!!For HDF I used also chromosome X
-if [ "$GENDER" = "XX" ]
-then
-chr_num=23
-else
-chr_num=22
-fi 
-chrom_to_keep=$(cat ${RESDIR}/${REF}.fai | head -n ${chr_num} | awk '{print $1}' | tr -s "\n" " " | sed 's/ $//')
-module load gcc/6.4.0 samtools/1.9
-samtools view -hb ${WORKDIR}/${SAMPLE}${bam_suffix}.${downsampling_depth}X.bam ${chrom_to_keep} > ${WORKDIR}/${SAMPLE}.${downsampling_depth}X.filtered.bam
+## Remove unplaced scaffolds
+## We performed downsampling based on the total number of reads sequenced but now we want to check the uniformity on the autosomes and sex chromosomes.
+## We will interrogate uniformity only in diploid chromsomes
+## We keep XX in females but avoid it in males
+## Careful!!!For HDF I used also chromosome X
+#if [ "$GENDER" = "XX" ]
+#then
+#chr_num=23
+#else
+#chr_num=22
+#fi 
+#chrom_to_keep=$(cat ${RESDIR}/${REF}.fai | head -n ${chr_num} | awk '{print $1}' | tr -s "\n" " " | sed 's/ $//')
+#module load gcc/6.4.0 samtools/1.9
+#samtools view -hb ${WORKDIR}/${SAMPLE}${bam_suffix}.${downsampling_depth}X.bam ${chrom_to_keep} > ${WORKDIR}/${SAMPLE}.${downsampling_depth}X.filtered.bam

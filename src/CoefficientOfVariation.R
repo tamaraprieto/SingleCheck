@@ -3,12 +3,11 @@
 
 library(dplyr)
 args            = commandArgs(TRUE)
-countsFile = paste(args[2],"/",args[1],".",args[3],".counts.txt" , sep ="")
+#countsFile = paste(args[2],"/",args[1],".",args[3],".counts.txt" , sep ="")
+countsFile = paste(args[1],".freqs.txt" , sep ="")
 genomecov = read.table(countsFile,stringsAsFactors = FALSE, header = FALSE)
-colnames(genomecov) = c("depth", "count", "len")
-
-# calculate the cumulative sum of column 2
-#genomecov = genomecov %>% mutate(sumcount = cumsum(as.numeric(count)))
+#colnames(genomecov) = c("depth", "count", "len")
+colnames(genomecov) = c("depth", "count")
 
 lengthSeq = sum(genomecov$count)
 
@@ -20,4 +19,6 @@ genomecov = genomecov  %>% mutate( tosum = (depth-meanDepth)^2 * count )
 upper_term = sqrt(sum(genomecov$tosum)/(sum(genomecov$count)-1))
 cv = upper_term / meanDepth
 print(cv)
-write.table(x=cv,file=paste(args[2],"/","CV.Fast.",args[1],".",args[3],".txt",sep=""),quote=FALSE,sep="\t",row.names=FALSE,col.names=FALSE)
+cv = data.frame(basename(args[1]),cv)
+#write.table(x=cv,file=paste(args[2],"/","CV.Fast.",args[1],".",args[3],".txt",sep=""),quote=FALSE,sep="\t",row.names=FALSE,col.names=FALSE)
+write.table(x=cv,file=paste(dirname(args[1]),"/CV.",basename(args[1]),".txt",sep=""),quote=FALSE,sep="\t",row.names=FALSE,col.names=FALSE)

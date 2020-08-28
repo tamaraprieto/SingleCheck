@@ -13,13 +13,14 @@ if sys.version_info[0] < 3:
 if len(sys.argv) < 2:
     sys.exit('Please, provide a sample name as argument')
 
+#sample=sys.argv[1]
+#workdir=sys.argv[2]
+#depth=sys.argv[3]
+#alpha=sys.argv[4]
+#chrom=sys.argv[5]
 sample=sys.argv[1]
-workdir=sys.argv[2]
-depth=sys.argv[3]
-alpha=sys.argv[4]
-chrom=sys.argv[5]
-suffix=".txt"
-file_name= workdir + "CorrMag." + sample + ".chr"+ chrom +"." + depth + "." + alpha + suffix
+suffix=".shiftedcov.txt"
+file_name= sample + suffix
 print("Loading data frame ",file_name,"...\n") 
 
 n=0
@@ -43,6 +44,8 @@ a=mult_sum/n
 b=math.pow(first_sum/num,2)
 autocorrelation=(a-b)/b
 print(autocorrelation)
-out = open(workdir + "Autocorrelation." + sample + ".chr" + chrom +"."+ depth + "." + alpha + ".txt","w")
-out.write(str(sample)+"\t"+str(alpha)+"\t"+str(autocorrelation)+"\n")
+#out = open(workdir + "Autocorrelation." + sample + ".chr" + chrom +"."+ depth + "." + alpha + ".txt","w")
+out = open(os.path.dirname(sample) + "Autocor." + os.path.basename(sample) + ".txt","w")
+#out.write(str(sample)+"\t"+str(alpha)+"\t"+str(autocorrelation)+"\n")
+out.write(str(os.path.basename(sample))+"\t"+str(autocorrelation)+"\n")
 out.close()

@@ -16,12 +16,13 @@ if len(sys.argv) < 2:
     sys.exit('Please, provide a sample name as argument')
 
 sample=sys.argv[1]
-workdir=sys.argv[2]
-depth=sys.argv[3]
-size=sys.argv[4]
-suffix=".txt"
-# ${WORKDIR}/ForMAD.${SAMPLE}.${DEPTH}.${size}.txt
-file_name= workdir + "ForMAD." + sample + "." + depth + "." + size + suffix
+#workdir=sys.argv[2]
+#depth=sys.argv[3]
+#size=sys.argv[4]
+#suffix=".txt"
+#suffix=".contiguous.txt"
+# ${NAME}.${WSIZE}.contiguous.txt
+file_name= sample + suffix
 print("Loading data frame ",file_name,"...\n") 
 
 # 1. Calculate mean read count across bins
@@ -57,5 +58,7 @@ array=numpy.array(vector_diff)
 abs_vector=abs(array-vector_diff_median)
 myMAD=statistics.median(abs_vector)
 print("MAD:",myMAD)
-out = open(workdir + "MAD." + sample + "." + depth + "." + size + ".txt","w")
-out.write(str(myMAD)+"\n")
+#out = open(workdir + "MAD." + sample + "." + depth + "." + size + ".txt","w")
+out = open(os.path.dirname(sample) + "MAD." + os.path.basename(sample) + ".txt","w")
+#out.write(str(myMAD)+"\n")
+out.write(str(os.path.basename(sample))+"\t"+str(myMAD)+"\n")

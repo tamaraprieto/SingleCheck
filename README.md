@@ -12,9 +12,10 @@ Dependencies:
 ## Usage
 
 ```bash
+SingleCheck HDF03.bam 
 ```
-# Example
+## Example
 
-# Output files
+## Output files
 
-# How to cite
+## How to cite

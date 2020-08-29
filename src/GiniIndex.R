@@ -24,5 +24,5 @@ genomecov = genomecov %>% rowwise() %>% mutate(first = ((sum(0:sumcount))-sum(0:
 second_formula_term = sum(genomecov$tosum)
 gini = first_formula_term * second_formula_term
 print(gini)
-#write.table(x=gini,file=paste(args[2],"/","Gini.",args[1],".",args[3],".txt",sep=""),quote=FALSE,sep="\t",row.names=FALSE,col.names=FALSE)
+gini = data.frame(basename(args[1]),gini)
 write.table(x=gini,file=paste(dirname(args[1]),"/Gini.",basename(args[1]),".txt",sep=""),quote=FALSE,sep="\t",row.names=FALSE,col.names=FALSE)

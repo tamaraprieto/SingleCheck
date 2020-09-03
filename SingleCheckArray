@@ -81,13 +81,15 @@
 source ReadConfig.sh $1
 SAMPLE=$(sed "${SLURM_ARRAY_TASK_ID}q;d" ${ORIDIR}/${SAMPLELIST})
 echo $SAMPLE
-NAME="${WORKDIR}/${SAMPLE}.sorted.${2}"
+SUFFIX=$2
+NAME="${WORKDIR}/${SAMPLE}${SUFFIX}"
 
 ############################################################################
 #                        SET UP VARIABLES                                  #
 ############################################################################
 
-if [ -n $SLURM_JOB_ID ];  then
+if [ -n "$SLURM_JOB_ID" ] && [ "$SLURM_JOB_ID" -eq "$SLURM_JOB_ID" ]
+then
     SCRIPT=$(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}' | awk '{print $1}')
     SCRIPTDIR=$(dirname $SCRIPT)
 else
@@ -198,7 +200,7 @@ echo "> Calculating autocorrelation"
 num=$(awk -v alpha=$ALPHA 'BEGIN{print alpha+1}')
 tail -n +${num} ${NAME}.mpileup | \
         paste ${NAME}.mpileup - | \
-        awk '{if (NF==12 && $3!="N" && $9!="N" && $1==$7) {print $4"\t"$10} else if (NF==6 && $3!="N"){print $4"\t"NA}}' | \
+        awk '{if (NF==12 && $3!="N" && $9!="N" && $1==$7) {print $4"\t"$10} else if (NF==6 && $3!="N"){print $4"\tNA"}}' | \
 	sort | uniq -c | \
         awk '{print $2"\t"$3"\t"$1}' \
         > ${NAME}.${ALPHA}.shiftedcov.txt
@@ -244,6 +246,7 @@ rm ${NAME}.${ALPHA}.shiftedcov.txt
 rm ${NAME}.${WSIZE}.contiguous.txt 
 rm ${NAME}.${WSIZE}.freqs.txt
 rm ${NAME}.${WSIZE}.regions.bed.gz
+rm ${NAME}.${WSIZE}.regions.bed.gz.csi
 
 
 # ///// Run metaphyler only if the number of unmapped reads is high?

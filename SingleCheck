@@ -108,11 +108,12 @@ fi
 #                        SET UP VARIABLES                                  #
 ############################################################################
 
-if [ -n $SLURM_JOB_ID ];  then
+if [ -n "$SLURM_JOB_ID" ] && [ "$SLURM_JOB_ID" -eq "$SLURM_JOB_ID" ]
+then
     SCRIPT=$(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}' | awk '{print $1}')
     SCRIPTDIR=$(dirname $SCRIPT)
 else
-    SCRIPTDIR=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
+    SCRIPTDIR=$(pwd -P)
 fi
 
 printf "\n\tSingleCheck -w %s -a %s -f %s -t %s -q %s %s\n\n" "$WSIZE" "$ALPHA" "$FLAGTOFILTEROUT" "$THREADS" "$MAPQUAL" "$BAM"
@@ -192,6 +193,7 @@ echo "> Calculating gini and cv"
         awk '{print $2"\t"$1}' | sort -n -k1,1 \
         > ${NAME}.${WSIZE}.freqs.txt
 #fi
+echo $SCRIPTDIR
 
 Rscript ${SCRIPTDIR}/src/GiniIndex.R ${NAME}.${WSIZE}
 Rscript ${SCRIPTDIR}/src/CoefficientOfVariation.R ${NAME}.${WSIZE}
@@ -202,7 +204,7 @@ echo "> Calculating autocorrelation"
 num=$(awk -v alpha=$ALPHA 'BEGIN{print alpha+1}')
 tail -n +${num} ${NAME}.mpileup | \
         paste ${NAME}.mpileup - | \
-        awk '{if (NF==12 && $3!="N" && $9!="N" && $1==$7) {print $4"\t"$10} else if (NF==6 && $3!="N"){print $4"\t"NA}}' | \
+        awk '{if (NF==12 && $3!="N" && $9!="N" && $1==$7) {print $4"\t"$10} else if (NF==6 && $3!="N"){print $4"\tNA"}}' | \
 	sort | uniq -c | \
         awk '{print $2"\t"$3"\t"$1}' \
         > ${NAME}.${ALPHA}.shiftedcov.txt

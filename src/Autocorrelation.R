@@ -6,7 +6,7 @@ library(matrixStats)
 args            = commandArgs(TRUE)
 countsFile = paste(args[1],".shiftedcov.txt" , sep ="")
 alpha = as.numeric(args[2])
-genomecov = read.table(countsFile,stringsAsFactors = FALSE, header = FALSE)
+genomecov = read.table(countsFile,stringsAsFactors = FALSE, header = FALSE,colClasses = c("numeric", "numeric","numeric"))
 colnames(genomecov) = c("depth", "depth_fwd", "count")
 
 lengthSeq = sum(genomecov$count)
@@ -14,9 +14,9 @@ lengthSeq = sum(genomecov$count)
 # Calculate the mean depth
 meanDepth = sum(as.numeric(genomecov$depth)*as.numeric(genomecov$count))/lengthSeq
 
+
 genomecov = genomecov  %>% drop_na("depth_fwd") %>%
 		       dplyr::mutate( c = depth*depth_fwd*count )
-
 
 first_term = (sum (genomecov$c)) / (lengthSeq - alpha)
 second_term = meanDepth^2

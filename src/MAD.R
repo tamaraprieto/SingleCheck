@@ -6,7 +6,7 @@ library(matrixStats)
 args            = commandArgs(TRUE)
 #countsFile = paste(args[2],"/",args[1],".",args[3],".counts.txt" , sep ="")
 countsFile = paste(args[1],".contiguous.txt" , sep ="")
-genomecov = read.table(countsFile,stringsAsFactors = FALSE, header = FALSE)
+genomecov = read.table(countsFile,stringsAsFactors = FALSE, header = FALSE, colClasses = c("numeric", "numeric","numeric"))
 colnames(genomecov) = c("depth", "depth_fwd", "count")
 
 lengthSeq = sum(genomecov$count)

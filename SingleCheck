@@ -11,28 +11,28 @@
 #                        USAGE                                             #
 ############################################################################
 	usage="
-	$(basename "$0") [options] <in.bam>
+	$(basename "$0") [options] <in.bam|in.fastq.gz> <in2.fastq.gz>
 	
 	options:
 	    -h  show this help text
 	    -w  set the window size for gini index, coefficient of variation and MAD (default: 10000)
-            -a  set alpha for autocorrelation (default: 1000)
+            -i  set increment/delta for autocorrelation (default: 1000)
             -t  number of threads
             -f  flag of the reads to filter out
             -q  mapping quality of the reads to analize 
 	    -d  regular expresion  matching the lines starting by chromosome names which are diploid (default: \"^[1-9|X]\")
-        the bam file must be indexed
+        Note: the bam file must be indexed and fastq files must be .gz compressed.
 	"
 
-	WSIZE=10000
-	ALPHA=1000
+	WSIZE=10000000
+	DELTA=1000
 	#SUFFIX="X.filtered"
 	FLAGTOFILTEROUT=772
 	THREADS=3
 	MAPQUAL=20
         DIPLOID_REGEX="^[1-9|X]"
 
-	while getopts ':hw:a:f:t:q::' option; do
+	while getopts ':hw:i:f:t:q:d:r::' option; do
 	  case "$option" in
 	    h) echo "$usage"
 	       exit
@@ -45,9 +45,9 @@
                exit 1
 	       fi
 	       ;;
-            a) ALPHA=$OPTARG
+            i) DELTA=$OPTARG
                isanum=^[0-9]+$
-               if [[ ! $ALPHA =~ $isanum ]] || [[ $ALPHA -eq 0 ]]; then
+               if [[ ! $DELTA =~ $isanum ]] || [[ $DELTA -eq 0 ]]; then
                printf "\nError: -a must be a positive whole number higher than 0\n"
                echo "$usage" >&2
                exit 1
@@ -67,6 +67,8 @@
                ;;
             d) DIPLOID_REGEX=$OPTARG
                ;;
+            r) REFERENCE=$OPTARG
+               ;;
 	    :) printf "missing argument for -%s\n" "$OPTARG" >&2
 	       echo "$usage" >&2
 	       exit 1
@@ -80,28 +82,56 @@
 	shift $((OPTIND - 1))
 
 
-if [ "$#" -ne 1 ]; then
-    printf "\nSpecify the name of the BAM file\n" >&2
+if [ "$#" -gt 2 ]; then
+    printf "\nIncorrect number of arguments\n" >&2
     echo "$usage" >&2
     exit 1
 fi
 
 # mandatory arguments
-BAM="$1"
-NAME=$(echo $BAM | sed 's/.bam//')
-if [ ! -f "$BAM" ]; then
-    echo ""
-    echo "$BAM does not exists"
-    echo ""
-    echo "$usage" >&2
-    exit 1
-fi
+if [ "$#" -eq 1 ]; then
+	FILE="$1"
+        if [[ "$FILE" != *.bam ]] && [[ "$FILE" != *.fastq.gz ]]; then
+            printf "\nFile extension must be \'.bam\' or \'.fastq.gz\'\n" >&2
+            echo "$usage" >&2
+            exit 1
+        fi
 
-if [[ "$BAM" != *.bam ]]
-then
-    printf "\nThe file extension must be \'.bam\'\n" >&2
-    echo "$usage" >&2
-    exit 1
+	if [ ! -f "$FILE" ]; then
+	    echo ""
+	    echo "$FILE does not exists"
+	    echo ""
+	    echo "$usage" >&2
+	    exit 1
+	fi
+	if [[ "$FILE" == *.bam ]];then
+	    METHOD="Aligned"
+        else
+	    METHOD="Single-end"
+            FASTQ1=$FILE
+            FASTQ2=""
+	fi
+	
+	NAME=$(echo $FILE | sed 's/.bam//' | sed 's/.fastq.gz//' )
+	
+elif [ "$#" -eq 2 ]; then 
+	FASTQ1="$1"
+	FASTQ2="$2"
+	METHOD="Paired-end"
+	if [[ "$FASTQ1" != *_1.fastq.gz ]] || [[ "$FASTQ2" != *_2.fastq.gz ]];then
+	    printf "\nPaired-end fastq files must be named as \'_1.fastq.gz\' and \'_2.fastq.gz\'\n" >&2
+	    echo "$usage" >&2
+	    exit 1
+	elif [ ! -f "$FASTQ2" ] || [ ! -f "$FASTQ1" ]; then
+	    echo ""
+	    echo "One or both fastq file do not exist"
+	    echo ""
+	    echo "$usage" >&2
+	    exit 1
+	fi
+	NAME=$(echo $FASTQ1 | sed 's/_1.fastq.gz//')
+else
+	exit 1
 fi
 
 ############################################################################
@@ -116,7 +146,7 @@ else
     SCRIPTDIR=$(pwd -P)
 fi
 
-printf "\n\tSingleCheck -w %s -a %s -f %s -t %s -q %s %s\n\n" "$WSIZE" "$ALPHA" "$FLAGTOFILTEROUT" "$THREADS" "$MAPQUAL" "$BAM"
+printf "\n\tSingleCheck -w %s -i %s -f %s -t %s -q %s %s\n\n" "$WSIZE" "$DELTA" "$FLAGTOFILTEROUT" "$THREADS" "$MAPQUAL" "$FILE"
 
 ############################################################################
 #                        LOAD MODULES                                      #
@@ -126,14 +156,40 @@ printf "\n\tSingleCheck -w %s -a %s -f %s -t %s -q %s %s\n\n" "$WSIZE" "$ALPHA" 
 	module load samtools/1.10 2> /dev/null
 	module load gcc/6.4.0 R/3.6.3 2> /dev/null
         module load miniconda3/4.8.2 2> /dev/null
+        module load gcccore/6.4.0 bedtools/2.28.0 2> /dev/null
+        module load gcc/6.4.0 bwa/0.7.17 2> /dev/null
         source activate /mnt/netapp1/posadalab/APPS/CommonCondaEnvironments/mosdepth 2> /dev/null
 
 # ///////// CONDA ENVIRONMENTS MISSING, CREATE A SINGLE ONE
 
 ############################################################################
+#                        MAP READS IF INPUT IS A FASTQ FILE                #
+############################################################################
+
+if [ "$METHOD" == "Paired-end" ] || [ "$METHOD" == "Single-end" ]; then
+        fai_index=$(echo $REFERENCE | sed 's/.fa/.fai/')
+        bwa_index=$(echo $REFERENCE | sed 's/.fa/.fa.ann/')
+        if [ -z $REFERENCE ] || [ ! -f $REFERENCE ] || [ ! -f $fai_index ] || [ ! -f $bwa_index ];then
+             printf "\nCheck that your reference exists and it has been properly indexed\n" >&2
+             echo "$usage" >&2
+             exit 1
+        fi
+	bwa mem -t $THREADS $REFERENCE \
+		$FASTQ1 $FASTQ2 | \
+		samtools sort -@$THREADS \
+		-o ${NAME}.bam -
+        samtools index ${NAME}.bam
+fi
+
+############################################################################
 #                        CALCULATE COVERAGE BIAS                           #
 ############################################################################
 
+
+if [ ! -f ${NAME}.bam.bai ]; then
+	printf "\nError: your BAM file must be indexed\n" >&2
+        exit 1
+fi
 
 #if [[ ! -f ${NAME}.${WSIZE}.regions.bed.gz ]]
 #then
@@ -147,7 +203,6 @@ echo "> Running mosdepth"
         MOSDEPTH_PRECISION=${precision} mosdepth \
                 -t $THREADS \
                 --fast-mode \
-		--no-per-base \
                 --by $WSIZE \
                 --flag $FLAGTOFILTEROUT \
                 --mapq $MAPQUAL \
@@ -159,27 +214,24 @@ echo "> Running mosdepth"
 #fi
 conda deactivate
 
+echo "> Creating input for autocorrelation"
+        zcat ${NAME}.${WSIZE}.per-base.bed.gz | \
+        awk -v alpha=$DELTA -v print_switch=0 \
+        '{if (print_switch==1) {start=$2-alpha; if (start<0) {print $1"\t"0"\t"$3-alpha"\t"$4} else{print $1"\t"start"\t"$3-alpha"\t"$4}}
+        else if (alpha >= $2 && alpha < $3) {start=$2-alpha;if (start<0) {print $1"\t"0"\t"$3-alpha"\t"$4} else {print $1"\t"start"\t"$3-alpha"\t"$4}; print_switch=1}}' | \
+        gzip -c > ${NAME}.${WSIZE}.${DELTA}.bed.gz
 
-if [[ ! -f ${NAME}.mpileup ]]
-then
-# ////// Create all the results in a new folder "name.parameters.date" to avoi problems creating the same file
-# ////// Read about mpileup paralelization or do it only in one chromosome (-region)
-# ////// I need mpileup for MAD = 1 and for autocorrelation for all alphas
-# ///// I could use the .per-base.bed.gz file generated by mosdepth (but it is a nedgraph, so then I would need to merge the bedgraphs with bedtools (and install anyway another software)). And I could not remove positions with N in the reference genome
-echo "> Running mpileup"
-samtools mpileup \
-        --ff $FLAGTOFILTEROUT \
-        --no-BAQ \
-        --fasta-ref ${RESDIR}/${REF}.fa \
-        -aa \
-        -q $MAPQUAL \
-        ${NAME}.bam | \
-	grep "$DIPLOID_REGEX" > \
-	${NAME}.mpileup
-else
-echo "Mpileup already created"
-fi
-
+        bedtools unionbedg -filler NA  \
+        -i ${NAME}.${WSIZE}.per-base.bed.gz \
+        ${NAME}.${WSIZE}.${DELTA}.bed.gz | \
+        grep "$DIPLOID_REGEX" | \
+        sort --parallel=$THREADS --version-sort -k4 -k5 | \
+        awk  \
+        '{if (FNR==1){diff=$3-$2;value1=$4;value2=$5}
+        else if (value1!=$4 || value2!=$5){print value1"\t"value2"\t"diff; diff=$3-$2;value1=$4;value2=$5}
+        else{diff=diff+($3-$2);value1=$4;value2=$5}
+        }END{print value1"\t"value2"\t"diff}' \
+        > ${NAME}.${DELTA}.shiftedcov.txt
 
 echo "> Calculating gini and cv"
 #if [[ ! -f ${NAME}.${WSIZE}.freqs.txt ]]
@@ -193,41 +245,17 @@ echo "> Calculating gini and cv"
         awk '{print $2"\t"$1}' | sort -n -k1,1 \
         > ${NAME}.${WSIZE}.freqs.txt
 #fi
-echo $SCRIPTDIR
 
 Rscript ${SCRIPTDIR}/src/GiniIndex.R ${NAME}.${WSIZE}
 Rscript ${SCRIPTDIR}/src/CoefficientOfVariation.R ${NAME}.${WSIZE}
 
 echo "> Calculating autocorrelation"
-#if [[ ! -f ${NAME}.${ALPHA}.shiftedcov.txt ]]
-#then
-num=$(awk -v alpha=$ALPHA 'BEGIN{print alpha+1}')
-tail -n +${num} ${NAME}.mpileup | \
-        paste ${NAME}.mpileup - | \
-        awk '{if (NF==12 && $3!="N" && $9!="N" && $1==$7) {print $4"\t"$10} else if (NF==6 && $3!="N"){print $4"\tNA"}}' | \
-	sort | uniq -c | \
-        awk '{print $2"\t"$3"\t"$1}' \
-        > ${NAME}.${ALPHA}.shiftedcov.txt
-#fi
 
-Rscript ${SCRIPTDIR}/src/Autocorrelation.R ${NAME}.${ALPHA} $ALPHA
+Rscript ${SCRIPTDIR}/src/Autocorrelation.R ${NAME}.${DELTA} $DELTA
 
 
 echo "> Calculating MAD"
 
-#if [[ ! -f ${NAME}.${WSIZE}.contiguous.txt ]]
-#then
-	if [[ "$WSIZE" = 1 ]]
-	then
-        num=2
-        tail -n +${num} ${NAME}.mpileup | \
-                paste ${NAME}.mpileup - | \
-                awk '{if (NF==12 && $3!="N" && $9!="N" && $1==$7) {print $4"\t"$10} else if (NF==12 && $3!="N" && $9!="N" && $1!=$7){print $4}}' | \
-		sort | uniq -c | \
-		awk '{if (NF==3) {print $2"\t"$3"\t"$1}else {print $2"\tNA\t"$1}}' \
-		 > ${NAME}.${WSIZE}.contiguous.txt
-
-	else
         # Paste values from consecutive windows together
         # I do not want to consider the counts from the last window because is shorter than the other
         # I should not use last comparison neither because it uses last window for one element. I have to only use the first column for calculating the average depth
@@ -239,22 +267,23 @@ echo "> Calculating MAD"
                 sort | uniq -c | \
                 awk '{if (NF==3) {print $2"\t"$3"\t"$1}else {print $2"\tNA\t"$1}}' \
                 > ${NAME}.${WSIZE}.contiguous.txt
-	fi
-#fi
 
 
 Rscript ${SCRIPTDIR}/src/MAD.R ${NAME}.${WSIZE}
 
-
-rm ${NAME}.${ALPHA}.shiftedcov.txt
-rm ${NAME}.${WSIZE}.contiguous.txt 
+rm ${NAME}.${DELTA}.shiftedcov.txt
+rm ${NAME}.${WSIZE}.${DELTA}.bed.gz
+rm ${NAME}.${WSIZE}.contiguous.txt
 rm ${NAME}.${WSIZE}.freqs.txt
 rm ${NAME}.${WSIZE}.regions.bed.gz
+rm ${NAME}.${WSIZE}.regions.bed.gz.csi
+rm ${NAME}.${WSIZE}.per-base.bed.gz
+rm ${NAME}.${WSIZE}.per-base.bed.gz.csi
 
 
 # ///// Run metaphyler only if the number of unmapped reads is high?
 echo "> METAPHYLER"
-samtools view -f 0x4 $BAM | awk '{OFS="\t"; print ">"$1"\n"$10}' > ${NAME}.unmapped.fasta
+samtools view -f 0x4 ${NAME}.bam | awk '{OFS="\t"; print ">"$1"\n"$10}' > ${NAME}.unmapped.fasta
 ~/apps/Metaphyler/MetaPhylerSRV0.115/metaphyler.pl 2 ${NAME}.unmapped.fasta ${NAME}
 
 rm ${NAME}.unmapped.fasta

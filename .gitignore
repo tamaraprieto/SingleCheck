@@ -1,4 +1,5 @@
 core.*
+.message*
 *.out
 *.png
 *.svg
@@ -10,3 +11,4 @@ core.*
 *.idx
 *.RData
 trash
+example

@@ -11,14 +11,16 @@ source ReadConfig.sh $CONFIG
 num_samples=$(wc -l $ORIDIR/$SAMPLELIST | awk '{print $1}')
 echo "Summarizing results for ${num_samples} samples"
 
+rm "${WORKDIR}/SingleCheck.${DATASET}.${DEPTH}.txt"
 for measurement in MAD Autocorrelation Gini CV
 do
 rm "${WORKDIR}/${measurement}.${DATASET}.${DEPTH}.txt"
 while read sample 
 do
-for size in 1 10 25 50 75 90 100 150 250 500 750 1000 2000 3000 4000 5000 6000 7000 8000 9000 10000 50000 100000 500000 1000000 5000000 10000000
+for size in 1 10 25 50 100 150 250 500 1000 2000 3000 5000 10000 50000 100000 500000 1000000 5000000 10000000
 do
-cat "${WORKDIR}/${measurement}.${sample}${SUFFIX}.${size}.txt" >> "${WORKDIR}/${measurement}.${DATASET}.${DEPTH}.txt"
+cat "${WORKDIR}/${measurement}.${sample}${SUFFIX}.${size}.txt" | sed 's/0.1X/01X/' >> "${WORKDIR}/${measurement}.${DATASET}.${DEPTH}.txt"
+cat "${WORKDIR}/${measurement}.${sample}${SUFFIX}.${size}.txt" | sed 's/0.1X/01X/' | awk -v measurement=$measurement '{print measurement"\t"$0}' >> ${WORKDIR}/SingleCheck.${DATASET}.${DEPTH}.txt
 done
 done < $ORIDIR/$SAMPLELIST
 done

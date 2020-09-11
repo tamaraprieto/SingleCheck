@@ -1,8 +1,7 @@
 #!/usr/bin/env Rscript
-# Calculate Coefficient of Variation from frequency table
 library(tidyverse)
 library(dplyr)
-library(matrixStats)
+#library(matrixStats)
 args            = commandArgs(TRUE)
 countsFile = paste(args[1],".shiftedcov.txt" , sep ="")
 alpha = as.numeric(args[2])
@@ -12,10 +11,15 @@ colnames(genomecov) = c("depth", "depth_fwd", "count")
 lengthSeq = sum(genomecov$count)
 
 # Calculate the mean depth
-meanDepth = sum(as.numeric(genomecov$depth)*as.numeric(genomecov$count))/lengthSeq
-
+#meanDepth = sum(as.numeric(genomecov$depth)*as.numeric(genomecov$count))/lengthSeq
+meanDepth = genomecov  %>% drop_na("depth") %>%
+                       dplyr::select(depth, count) %>%
+                       dplyr::mutate( c = depth*count ) %>%
+                       dplyr::summarize(sum(c)/lengthSeq) %>%
+		       as.numeric()
 
 genomecov = genomecov  %>% drop_na("depth_fwd") %>%
+		       drop_na("depth") %>%
 		       dplyr::mutate( c = depth*depth_fwd*count )
 
 first_term = (sum (genomecov$c)) / (lengthSeq - alpha)

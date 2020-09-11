@@ -27,6 +27,5 @@ second_term = meanDepth^2
 
 autocorrelation = (first_term - second_term) / second_term
 
-print(autocorrelation)
 AUTOCORR = data.frame(basename(args[1]),autocorrelation)
 write.table(x=AUTOCORR,file=paste(dirname(args[1]),"/Autocorrelation.",basename(args[1]),".txt",sep=""),quote=FALSE,sep="\t",row.names=FALSE,col.names=FALSE)

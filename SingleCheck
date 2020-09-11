@@ -26,13 +26,18 @@
 
 	WSIZE=10000000
 	DELTA=1000
-	#SUFFIX="X.filtered"
 	FLAGTOFILTEROUT=772
 	THREADS=3
 	MAPQUAL=20
         DIPLOID_REGEX="^[1-9|X]"
+	MT_REGEX="^(MT|chrM)"
+        # Parameterize the following:
+	downsampling_depth=0.1
+	#strategy=HighAccuracy # For downsampling 
+	strategy="ConstantMemory" # For downsampling
+        METHOD="ImpreciseSeqDepthCalc" # For calculating SeqDepth
 
-	while getopts ':hw:i:f:t:q:d:r::' option; do
+	while getopts ':hw:i:f:t:q:d:m:r::' option; do
 	  case "$option" in
 	    h) echo "$usage"
 	       exit
@@ -66,6 +71,8 @@
                fi
                ;;
             d) DIPLOID_REGEX=$OPTARG
+               ;;
+	    m) MT_REGEX=$OPTARG
                ;;
             r) REFERENCE=$OPTARG
                ;;
@@ -158,6 +165,7 @@ printf "\n\tSingleCheck -w %s -i %s -f %s -t %s -q %s %s\n\n" "$WSIZE" "$DELTA" 
         module load miniconda3/4.8.2 2> /dev/null
         module load gcccore/6.4.0 bedtools/2.28.0 2> /dev/null
         module load gcc/6.4.0 bwa/0.7.17 2> /dev/null
+	module load picard/2.18.14 2> /dev/null
         source activate /mnt/netapp1/posadalab/APPS/CommonCondaEnvironments/mosdepth 2> /dev/null
 
 # ///////// CONDA ENVIRONMENTS MISSING, CREATE A SINGLE ONE
@@ -182,7 +190,7 @@ if [ "$METHOD" == "Paired-end" ] || [ "$METHOD" == "Single-end" ]; then
 fi
 
 ############################################################################
-#                        CALCULATE COVERAGE BIAS                           #
+#                        CALCULATE RAW SEQUENCING COVERAGE                 #
 ############################################################################
 
 
@@ -191,8 +199,76 @@ if [ ! -f ${NAME}.bam.bai ]; then
         exit 1
 fi
 
-#if [[ ! -f ${NAME}.${WSIZE}.regions.bed.gz ]]
-#then
+# Calculate genome length
+genome_length=$(samtools view -H  ${NAME}.bam | grep "^@SQ" | awk '{sum+=substr($3,4,length($3)-1)}END{print sum}')
+#genome_length=$(cut -f2 ${RESDIR}/${REF}.fai | awk '{sum+=$1}END{print sum}')
+
+# IF READS HAVE BEEN FILTERED OUT IT IS NOT POSSIBLE TO COUNT SUCH BASES
+# QUICK RAW SEQUENCING DEPTH CALCULATION: NO POSIBLE TO COUNT CLIPPED BASES. 
+if [ "$METHOD" = "ImpreciseSeqDepthCalc" ];then
+	# Calculate total sequenced bases
+	# Remove supplementary alignments and secondary to avoid counting the same read twice
+	# If I do not remove supplementary I will count hard bases twice and the same read twice using samtools idxstats
+	samtools view -bF 2304 ${NAME}.bam > ${NAME}.primary.bam
+	samtools index ${NAME}.primary.bam
+	# idxstats: The output is TAB-delimited with each line consisting of reference sequence name, sequence length, # mapped read-segments and # unmapped read-segments. It is written to stdout. Note this may count reads multiple times if they are mapped more than once or in multiple fragments.
+	raw_reads=$(samtools idxstats ${NAME}.primary.bam | \
+		awk '{sum+=($3+$4)}END{print sum}')
+	# Use the first million of reads to calculate average read length
+	mean_readlength=$(samtools view ${NAME}.primary.bam | head -n 1000000 | cut -f 10 | awk '{ print length }'| sort | uniq -c | awk '{sum+=$1*$2;num+=$1}END{print sum/num}')
+	
+	raw_bases=$(awk -v meanl=$mean_readlength -v rawr=$raw_reads 'BEGIN{print rawr*meanl}')
+else
+	samtools view -bF 2304 ${NAME}.bam > ${NAME}.primary.bam
+	samtools index ${NAME}.primary.bam
+	
+	# SLOW RAW SEQUENCING DEPTH CALCULATION: POSSIBLE TO COUNT CLIPPED BASES
+	# Get the number of bases which are aligned, soft-clipped or unmapped (only count only primary aligments)
+	aligned_soft_bases=$(samtools view ${NAME}.primary.bam | \
+		cut -f10 | awk '{total+=length}END{print total}')
+	## Get the number of bases which are hard-clipped
+	hard_bases=$(samtools view ${NAME}.primary.bam | cut -f6 | \
+		grep H | sed 's/\([0-9]*\)\([A-Z]\)/\1\2\n/g' | \
+		grep -v "^$" | grep H | sed 's/H//' | awk '{sum+=$1}END{print sum}')
+	if [ -z "$hard_bases" ];then
+	       hard_bases=0
+	fi
+	raw_bases=$(($aligned_soft_bases + $hard_bases))
+fi
+
+sequencing_depth=$(awk -v gl=$genome_length -v rawb=$raw_bases 'BEGIN{print rawb/gl}')
+rm ${NAME}.primary.bam.bai
+rm ${NAME}.primary.bam
+
+############################################################################
+#                 DOWNSAMPLE AND CALCULATE COVERAGE BIAS                   #
+############################################################################
+
+# Calculating downsampling probability
+# default awk decimal places 6
+probability=$(awk -v ds_d=$downsampling_depth -v rs_d=$sequencing_depth 'BEGIN{print ds_d/rs_d}') 
+#probability=`bc -l <<< "scale=10; $downsampling_depth / $sequencing_depth"`
+
+echo "Downsampling following "${strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X."
+if [[ ! -z $(awk -v prob=$probability 'BEGIN{if (prob > 1) print "Lowest sequencing than downsampling selected"}') ]]
+then
+	ln -s ${NAME}.bam ${NAME}.${downsampling_depth}X.bam
+else
+	# Reads from the same template (read-pairs,secondary and supplementary) are all either kept or discarded as a unit, with the goal of retaining reads from PROBABILITY * input templates. The results will contain approximately PROBABILITY * input reads, however for very small PROBABILITIES this may not be the case.
+# Take the exponential of the number
+	num=$(printf %e ${probability} | fold -w1 | tail -n 1)
+	accuracy=$(awk -v num=$num 'BEGIN{print 0.01*10^-num}')
+	echo "Downsampling following "${strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X. Downsampling probability: "$probability". Accuracy: "${accuracy}
+	java -jar $EBROOTPICARD/picard.jar DownsampleSam \
+        	INPUT=${NAME}.bam \
+        	OUTPUT=${NAME}.${downsampling_depth}X.bam \
+        	RANDOM_SEED=1 \
+        	PROBABILITY=${probability} \
+        	STRATEGY=$strategy \
+        	CREATE_INDEX=true \
+        	ACCURACY=$accuracy
+fi
+
 echo "> Running mosdepth"
         # the number of floats I need for mosdepth depends on the window size
 	# wc -c gives an extra character (\n). window size of 100 (3 chars) -> minimum coverage will be 0.01 (2 decs)
@@ -207,11 +283,10 @@ echo "> Running mosdepth"
                 --flag $FLAGTOFILTEROUT \
                 --mapq $MAPQUAL \
                 ${NAME}.${WSIZE} \
-                ${NAME}.bam
+                ${NAME}.${downsampling_depth}X.bam
         # Output .regions.bed.gz contains mean base depth per window
 	rm ${NAME}.${WSIZE}.mosdepth* # remove extra files created by mosdepth
 
-#fi
 conda deactivate
 
 echo "> Creating input for autocorrelation"
@@ -224,7 +299,7 @@ echo "> Creating input for autocorrelation"
         bedtools unionbedg -filler NA  \
         -i ${NAME}.${WSIZE}.per-base.bed.gz \
         ${NAME}.${WSIZE}.${DELTA}.bed.gz | \
-        grep "$DIPLOID_REGEX" | \
+        grep -E "$DIPLOID_REGEX" | \
         sort --parallel=$THREADS --version-sort -k4 -k5 | \
         awk  \
         '{if (FNR==1){diff=$3-$2;value1=$4;value2=$5}
@@ -234,17 +309,14 @@ echo "> Creating input for autocorrelation"
         > ${NAME}.${DELTA}.shiftedcov.txt
 
 echo "> Calculating gini and cv"
-#if [[ ! -f ${NAME}.${WSIZE}.freqs.txt ]]
-#then
         # Create a frequency table
         zcat ${NAME}.${WSIZE}.regions.bed.gz | \
-        grep "$DIPLOID_REGEX" | \
+        grep -E "$DIPLOID_REGEX" | \
         awk '{print $4}' | \
         sort -n | \
         uniq -c | \
         awk '{print $2"\t"$1}' | sort -n -k1,1 \
         > ${NAME}.${WSIZE}.freqs.txt
-#fi
 
 Rscript ${SCRIPTDIR}/src/GiniIndex.R ${NAME}.${WSIZE}
 Rscript ${SCRIPTDIR}/src/CoefficientOfVariation.R ${NAME}.${WSIZE}
@@ -262,7 +334,7 @@ echo "> Calculating MAD"
         zcat ${NAME}.${WSIZE}.regions.bed.gz | \
                 tail -n +2 | \
                 paste  <(zcat ${NAME}.${WSIZE}.regions.bed.gz) - | \
-                grep "$DIPLOID_REGEX" | \
+                grep -E "$DIPLOID_REGEX" | \
                 awk '{if (NF==8 && $1==$5) {print $4"\t"$8} else if (NF==8 && $1!=$5){print $4}}' | \
                 sort | uniq -c | \
                 awk '{if (NF==3) {print $2"\t"$3"\t"$1}else {print $2"\tNA\t"$1}}' \
@@ -271,6 +343,30 @@ echo "> Calculating MAD"
 
 Rscript ${SCRIPTDIR}/src/MAD.R ${NAME}.${WSIZE}
 
+# Run Metaphyler on all unmapped reads, not only the downsampled ones
+echo "> METAPHYLER"
+samtools view -f 0x4 ${NAME}.bam | awk '{OFS="\t"; print ">"$1"\n"$10}' > ${NAME}.unmapped.fasta
+~/apps/Metaphyler/MetaPhylerSRV0.115/metaphyler.pl 2 ${NAME}.unmapped.fasta ${NAME}
+
+
+samtools view -bF 2304 ${NAME}.${downsampling_depth}X.bam > ${NAME}.${downsampling_depth}X.primary.bam
+samtools index ${NAME}.${downsampling_depth}X.primary.bam
+MT_mappedreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | grep -E "$MT_REGEX" | awk '{print $3}')
+mt_perc_mappedreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | awk -v mt=$MT_mappedreads '{sum+=$3}END{print mt/sum}')
+unmapped_perc_totalreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | \
+        awk '{mapped+=$3;unmapped+=$4}END{print unmapped/(unmapped+mapped)}')
+breadth=$(awk -v gl=$genome_length '{if ($1==0){sum+=$3}}END{sum/gl*100}' ${NAME}.${DELTA}.shiftedcov.txt)
+class=$(awk '{if ($1 !~ "{") print $0}' ${NAME}.genus.tab | grep -v "^@" | awk '{if ($5 >= 98) print $1}' | tr -s '\n' ',' | sed 's/,$/\n/')
+SAMPLE=$(basename $NAME)
+WORKDIR=$(dirname $NAME)
+autocorrelation=$(awk '{print $2}' ${WORKDIR}/Autocorrelation.${SAMPLE}.${DELTA}.txt)
+gini=$(awk '{print $2}' ${WORKDIR}/Gini.${SAMPLE}.${WSIZE}.txt)
+CV=$(awk '{print $2}' ${WORKDIR}/CV.${SAMPLE}.${WSIZE}.txt)
+
+rm ${NAME}.${downsampling_depth}X.bam
+rm ${NAME}.${downsampling_depth}X.bai
+rm ${NAME}.${downsampling_depth}X.primary.bam
+rm ${NAME}.${downsampling_depth}X.primary.bam.bai
 rm ${NAME}.${DELTA}.shiftedcov.txt
 rm ${NAME}.${WSIZE}.${DELTA}.bed.gz
 rm ${NAME}.${WSIZE}.contiguous.txt
@@ -279,55 +375,11 @@ rm ${NAME}.${WSIZE}.regions.bed.gz
 rm ${NAME}.${WSIZE}.regions.bed.gz.csi
 rm ${NAME}.${WSIZE}.per-base.bed.gz
 rm ${NAME}.${WSIZE}.per-base.bed.gz.csi
-
-
-# ///// Run metaphyler only if the number of unmapped reads is high?
-echo "> METAPHYLER"
-samtools view -f 0x4 ${NAME}.bam | awk '{OFS="\t"; print ">"$1"\n"$10}' > ${NAME}.unmapped.fasta
-~/apps/Metaphyler/MetaPhylerSRV0.115/metaphyler.pl 2 ${NAME}.unmapped.fasta ${NAME}
-
 rm ${NAME}.unmapped.fasta
+rm ${NAME}*.tab
+rm ${NAME}.map
+
+printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$SAMPLE" "$raw_bases" "$sequencing_depth" "$WSIZE" "$DELTA" "$unmapped_perc_totalreads" "$mt_perc_mappedreads" "$class" "$breadth" "$autocorrelation" "$CV" "$gini" > ${NAME}.SingleCheck.txt
+
+
 echo "> Finished!"
-
-#
-## Get the number of bases which are aligned, soft-clipped or unmapped (only count only primary aligments)
-#aligned_soft_bases=$(samtools view -F 256 $WORKDIR/$SAMPLE.dedup.bam | cut -f10 | awk '{total+=length}END{print total}')
-## Get the number of bases which are hard-clipped
-# /// avoid counting secondary?
-#hard_bases=$(samtools view $WORKDIR/$SAMPLE.dedup.bam | cut -f6 | grep H | sed 's/\([0-9]*\)\([A-Z]\)/\1\2\n/g' | grep -v "^$" | grep H | sed 's/H//' | awk '{sum+=$1}END{print sum}')
-#if [ -z "$hard_bases" ];then
-#	hard_bases=0
-#fi
-#raw_bases=$(($aligned_soft_bases + $hard_bases))
-#genome_length=$(cat ${RESDIR}/${REF}.fai | cut -f2 | awk '{sum+=$1}END{print sum}')
-#sequencing_depth=$(bc -l <<< "scale=4; $raw_bases / $genome_length")
-#
-## 1284: remove not primary alignments, unmapped and duplicates
-#
-#echo "> CREATE QC FILE"
-#rm ${WORKDIR}/${SAMPLE}_QC.txt
-
-# ////// index bam or require to be indexed
-#samtools index ${NAME}.bam
-#MT=$(samtools idxstats ${BAM} | grep -e "^MT" -e "^chrM" | awk '{print $3}')
-#genome=$(cut -f 5 ${WORKDIR}/${SAMPLE}_genome.bed | head -1)
-#breadth=$(head -1 ${WORKDIR}/${SAMPLE}_genome.bed | awk '{print (1-$5)*100}')
-#class=$(awk '{if ($1 !~ "{") print $0}' ${WORKDIR}/${SAMPLE}.genus.tab | grep -v "^@" | awk '{if ($5 >= 98) print $1}' | tr -s '\n' ',' | sed 's/,$/\n/')
-#
-#awk -v sample=${SAMPLE} \
-#	-v tbases=${raw_bases} \
-#	-v seqdepth=${sequencing_depth} \
-#	-v talign=${alignments} \
-#	-v unique=${unique} -v \
-#	unmapped=${unmapped} \
-#	-v dup=${duplicate} \
-#	-v mt=${MT} \
-#	-v bact=${class} \
-#	-v breadth=${breadth} \
-#	-v genlen=${genome_length} \
-#	-v adapt=${adapter} \
-#	-v suppl=${chimeric} \
-#	-v chimerapairs=${chimerapairs} \
-#	-v preseq_inf=${preseq_inference} \
-#	-F $'\t' 'BEGIN{OFS=FS; print sample,treads,tbases/1000000000,seqdepth,unique/treads*100,unmapped/treads*100,adapt,dup/(treads-unmapped)*100,chimeric/treads*100,chimerapairs,mt/(treads-unmapped)*100,bact,breadth,breadth*tbases/genlen,preseq_inf}' > ${WORKDIR}/${SAMPLE}_QC.txt
-

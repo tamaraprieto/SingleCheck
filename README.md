@@ -6,6 +6,7 @@ SingleCheck is program for performing quality control of single-cell DNA-seq lib
 
 Dependencies:
 - [mosdepth](https://github.com/brentp/mosdepth)
+- [bedtools](https://bedtools.readthedocs.io/en/latest/)
 - [samtools](http://www.htslib.org/)
 - R packages: tidyverse dplyr matrixStats 
 

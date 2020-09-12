@@ -12,3 +12,5 @@ core.*
 *.RData
 trash
 example
+.Rproj.user
+*.Rproj

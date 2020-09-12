@@ -352,13 +352,13 @@ samtools view -f 0x4 ${NAME}.bam | awk '{OFS="\t"; print ">"$1"\n"$10}' > ${NAME
 samtools view -bF 2304 ${NAME}.${downsampling_depth}X.bam > ${NAME}.${downsampling_depth}X.primary.bam
 samtools index ${NAME}.${downsampling_depth}X.primary.bam
 MT_mappedreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | grep -E "$MT_REGEX" | awk '{print $3}')
-mt_perc_mappedreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | awk -v mt=$MT_mappedreads '{sum+=$3}END{print mt/sum}')
+mt_perc_mappedreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | awk -v mt=$MT_mappedreads '{sum+=($3+$4)}END{print mt/sum}')
 unmapped_perc_totalreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | \
         awk '{mapped+=$3;unmapped+=$4}END{print unmapped/(unmapped+mapped)}')
 breadth=$(awk -v gl=$genome_length '{if ($1==0){sum+=$3}}END{sum/gl*100}' ${NAME}.${DELTA}.shiftedcov.txt)
 class=$(awk '{if ($1 !~ "{") print $0}' ${NAME}.genus.tab | grep -v "^@" | awk '{if ($5 >= 98) print $1}' | tr -s '\n' ',' | sed 's/,$/\n/')
-SAMPLE=$(basename $NAME)
-WORKDIR=$(dirname $NAME)
+SAMPLE=$(basename "$NAME")
+WORKDIR=$(dirname "$NAME")
 autocorrelation=$(awk '{print $2}' ${WORKDIR}/Autocorrelation.${SAMPLE}.${DELTA}.txt)
 gini=$(awk '{print $2}' ${WORKDIR}/Gini.${SAMPLE}.${WSIZE}.txt)
 CV=$(awk '{print $2}' ${WORKDIR}/CV.${SAMPLE}.${WSIZE}.txt)
@@ -378,6 +378,9 @@ rm ${NAME}.${WSIZE}.per-base.bed.gz.csi
 rm ${NAME}.unmapped.fasta
 rm ${NAME}*.tab
 rm ${NAME}.map
+rm ${WORKDIR}/CV.*
+rm ${WORKDIR}/Gini.*
+rm ${WORKDIR}/Autocorrelation.*
 
 printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$SAMPLE" "$raw_bases" "$sequencing_depth" "$WSIZE" "$DELTA" "$unmapped_perc_totalreads" "$mt_perc_mappedreads" "$class" "$breadth" "$autocorrelation" "$CV" "$gini" > ${NAME}.SingleCheck.txt
 

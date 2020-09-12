@@ -3,10 +3,8 @@
 # SET UP VARIABLES
 Samples_File=example/Samples.txt
 path=$(dirname "$Sample_File")
-echo $path
 
-rm -f ${path}/SingleCheck.txt
-printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "Sample" "Sequenced bases" "Original sequencing depth" "Bin size" "Delta" "% of unmapped reads" "% of reads mapped to the mitochondria" "Potential contaminants" "Breadth" "Autocorrelation" "Coefficient of variation" "Gini index" > ${NAME}.SingleCheck.txt
+printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "Sample" "Sequenced bases" "Original sequencing depth" "Bin size" "Delta" "% of unmapped reads" "% of reads mapped to the mitochondria" "Potential contaminants" "Breadth" "Autocorrelation" "Coefficient of variation" "Gini index" > ${path}/SingleCheck.txt
 while read sample 
 do
 name=$(basename $sample)
@@ -18,4 +16,4 @@ fi
 cat ${sample}.SingleCheck.txt >> ${path}/SingleCheck.txt
 done < $Samples_File
 
-echo "Output generated at ${path}/SingleCheckOutput.txt"
+echo "Output generated at ${path}/SingleCheck.txt"

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# SET UP VARIABLES
-Samples_File=example/Samples.txt
-path=$(dirname "$Sample_File")
+#SamplesFile=example/Samples.txt
+SamplesFile=$1
+path=$(dirname "$SamplesFile")
 
 printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "Sample" "Sequenced bases" "Original sequencing depth" "Bin size" "Delta" "% of unmapped reads" "% of reads mapped to the mitochondria" "Potential contaminants" "Breadth" "Autocorrelation" "Coefficient of variation" "Gini index" > ${path}/SingleCheck.txt
 while read sample 
@@ -14,6 +14,6 @@ echo "${sample}.SingleCheck.txt does not exist"
 exit 1
 fi
 cat ${sample}.SingleCheck.txt >> ${path}/SingleCheck.txt
-done < $Samples_File
+done < $SamplesFile
 
 echo "Output generated at ${path}/SingleCheck.txt"

@@ -15,12 +15,14 @@
 	
 	options:
 	    -h  show this help text
-	    -w  set the window size for gini index, coefficient of variation and MAD (default: 10000)
-            -i  set increment/delta for autocorrelation (default: 1000)
-            -t  number of threads
-            -f  flag of the reads to filter out
-            -q  mapping quality of the reads to analize 
-	    -d  regular expresion  matching the lines starting by chromosome names which are diploid (default: \"^[1-9|X]\")
+	    -w <int> set the window size for gini index, coefficient of variation and MAD (default: 10000)
+            -i <int> set increment/delta for autocorrelation (default: 1000)
+            -t <int> number of threads
+            -f <int> flag of the reads to filter out
+            -q <int>  mapping quality of the reads to analize
+	    -r <ref.fa> reference genome
+	    -d <REGEX> regular expresion  matching the lines starting by chromosome names which are diploid (default: \"^[1-9|X]\")
+            -m <REGEX> regular expresion matching the lines starting by the mitochondrial contig (default: \"^(MT|chrM)\" )
         Note: the bam file must be indexed and fastq files must be .gz compressed.
 	"
 
@@ -35,8 +37,9 @@
 	downsampling_depth=0.1
 	#strategy=HighAccuracy # For downsampling 
 	strategy="ConstantMemory" # For downsampling
-        METHOD="ImpreciseSeqDepthCalc" # For calculating SeqDepth
+        DOWNSAMPLING="ImpreciseSeqDepthCalc" # For calculating SeqDepth
 
+        # The : before the flags is for taking control of flags that are not in the list
 	while getopts ':hw:i:f:t:q:d:m:r::' option; do
 	  case "$option" in
 	    h) echo "$usage"
@@ -76,11 +79,11 @@
                ;;
             r) REFERENCE=$OPTARG
                ;;
-	    :) printf "missing argument for -%s\n" "$OPTARG" >&2
+	    :) printf "missing argument for -%s\n" "$OPTARG"
 	       echo "$usage" >&2
 	       exit 1
 	       ;;
-	   \?) printf "illegal option: -%s\n" "$OPTARG" >&2
+	    \?) printf "illegal option: -%s\n" "$OPTARG"
 	       echo "$usage" >&2
 	       exit 1
 	       ;;
@@ -205,7 +208,7 @@ genome_length=$(samtools view -H  ${NAME}.bam | grep "^@SQ" | awk '{sum+=substr(
 
 # IF READS HAVE BEEN FILTERED OUT IT IS NOT POSSIBLE TO COUNT SUCH BASES
 # QUICK RAW SEQUENCING DEPTH CALCULATION: NO POSIBLE TO COUNT CLIPPED BASES. 
-if [ "$METHOD" = "ImpreciseSeqDepthCalc" ];then
+if [ "$DOWNSAMPLING" = "ImpreciseSeqDepthCalc" ];then
 	# Calculate total sequenced bases
 	# Remove supplementary alignments and secondary to avoid counting the same read twice
 	# If I do not remove supplementary I will count hard bases twice and the same read twice using samtools idxstats
@@ -246,14 +249,14 @@ rm ${NAME}.primary.bam
 
 # Calculating downsampling probability
 # default awk decimal places 6
-probability=$(awk -v ds_d=$downsampling_depth -v rs_d=$sequencing_depth 'BEGIN{print ds_d/rs_d}') 
-#probability=`bc -l <<< "scale=10; $downsampling_depth / $sequencing_depth"`
+#probability=$(awk -v ds_d=$downsampling_depth -v rs_d=$sequencing_depth 'BEGIN{print ds_d/rs_d}') 
+probability=`bc -l <<< "scale=10; $downsampling_depth / $sequencing_depth"`
 
-echo "Downsampling following "${strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X."
 if [[ ! -z $(awk -v prob=$probability 'BEGIN{if (prob > 1) print "Lowest sequencing than downsampling selected"}') ]]
 then
 	ln -s ${NAME}.bam ${NAME}.${downsampling_depth}X.bam
 else
+echo "Downsampling following "${strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X."
 	# Reads from the same template (read-pairs,secondary and supplementary) are all either kept or discarded as a unit, with the goal of retaining reads from PROBABILITY * input templates. The results will contain approximately PROBABILITY * input reads, however for very small PROBABILITIES this may not be the case.
 # Take the exponential of the number
 	num=$(printf %e ${probability} | fold -w1 | tail -n 1)
@@ -352,13 +355,15 @@ samtools view -f 0x4 ${NAME}.bam | awk '{OFS="\t"; print ">"$1"\n"$10}' > ${NAME
 samtools view -bF 2304 ${NAME}.${downsampling_depth}X.bam > ${NAME}.${downsampling_depth}X.primary.bam
 samtools index ${NAME}.${downsampling_depth}X.primary.bam
 MT_mappedreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | grep -E "$MT_REGEX" | awk '{print $3}')
-mt_perc_mappedreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | awk -v mt=$MT_mappedreads '{sum+=($3+$4)}END{print mt/sum}')
+mt_perc_totalreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | awk -v mt=$MT_mappedreads '{sum+=($3+$4)}END{print mt/sum*100}')
 unmapped_perc_totalreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | \
-        awk '{mapped+=$3;unmapped+=$4}END{print unmapped/(unmapped+mapped)}')
-breadth=$(awk -v gl=$genome_length '{if ($1==0){sum+=$3}}END{sum/gl*100}' ${NAME}.${DELTA}.shiftedcov.txt)
+        awk '{mapped+=$3;unmapped+=$4}END{print unmapped/(unmapped+mapped)*100}')
+breadth=$(awk -v gl=$genome_length '{if ($1==0){sum+=$3}}END{print (1 - sum/gl)*100}' ${NAME}.${DELTA}.shiftedcov.txt)
 class=$(awk '{if ($1 !~ "{") print $0}' ${NAME}.genus.tab | grep -v "^@" | awk '{if ($5 >= 98) print $1}' | tr -s '\n' ',' | sed 's/,$/\n/')
-SAMPLE=$(basename "$NAME")
+SAMPLE=$(basename $NAME)
+echo $SAMPLE
 WORKDIR=$(dirname "$NAME")
+echo $WORKDIR
 autocorrelation=$(awk '{print $2}' ${WORKDIR}/Autocorrelation.${SAMPLE}.${DELTA}.txt)
 gini=$(awk '{print $2}' ${WORKDIR}/Gini.${SAMPLE}.${WSIZE}.txt)
 CV=$(awk '{print $2}' ${WORKDIR}/CV.${SAMPLE}.${WSIZE}.txt)
@@ -378,11 +383,11 @@ rm ${NAME}.${WSIZE}.per-base.bed.gz.csi
 rm ${NAME}.unmapped.fasta
 rm ${NAME}*.tab
 rm ${NAME}.map
-rm ${WORKDIR}/CV.*
-rm ${WORKDIR}/Gini.*
-rm ${WORKDIR}/Autocorrelation.*
+rm ${WORKDIR}/CV.${SAMPLE}.${WSIZE}.txt
+rm ${WORKDIR}/Gini.${SAMPLE}.${WSIZE}.txt
+rm ${WORKDIR}/Autocorrelation.${SAMPLE}.${DELTA}.txt
 
-printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$SAMPLE" "$raw_bases" "$sequencing_depth" "$WSIZE" "$DELTA" "$unmapped_perc_totalreads" "$mt_perc_mappedreads" "$class" "$breadth" "$autocorrelation" "$CV" "$gini" > ${NAME}.SingleCheck.txt
+printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$SAMPLE" "$raw_bases" "$sequencing_depth" "$WSIZE" "$DELTA" "$unmapped_perc_totalreads" "$mt_perc_totalreads" "$class" "$breadth" "$autocorrelation" "$CV" "$gini" > ${NAME}.SingleCheck.txt
 
 
 echo "> Finished!"

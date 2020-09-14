@@ -5,6 +5,7 @@ SingleCheck is program for performing quality control of single-cell DNA-seq lib
 ## Installation
 
 Dependencies:
+- [BWA-MEM](https://github.com/lh3/bwa)
 - [mosdepth](https://github.com/brentp/mosdepth)
 - [bedtools](https://bedtools.readthedocs.io/en/latest/)
 - [samtools](http://www.htslib.org/)
@@ -13,9 +14,12 @@ Dependencies:
 ## Usage
 
 ```bash
-SingleCheck HDF03.bam 
+SingleCheck R1.T15.bam 
 ```
-## Example
+
+```bash
+CreateInputApp.sh
+```
 
 ## Output files
 

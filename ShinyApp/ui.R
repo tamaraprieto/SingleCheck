@@ -58,17 +58,19 @@ dashboardPage(skin = "black",
           tabBox(width = "100%",
              tabPanel("Summarizing table",
                       uiOutput("seqcov"),
-                      downloadButton('downloadSummaryTable', 'Download'),
                       div(style = 'overflow-x: scroll',withSpinner(DT::dataTableOutput("stats")))),
+                      downloadButton('downloadSummaryTable', 'Download'),
                       #withSpinner(DT::dataTableOutput("stats"))),
-             tabPanel("Explore your data",  h2("Variable description"), uiOutput("headerVars"), div(style = 'overflow-x: scroll',withSpinner(plotOutput("variables"))), verbatimTextOutput("mean"), br(),h2("Variable association"), uiOutput("varassoc"), withSpinner(plotOutput("boxplot")), verbatimTextOutput("stat_test")),
-             tabPanel("Coverage uniformity", 
-                      h2("Preseq gc_extrap breadth of coverage inferences at different sequencing coverages (Daley & Smith, 2014)"),
-                      downloadButton('downloadPreSeq', 'Download'),
-                      plotOutput("PreSeq"), h2("Lorenz curves"), plotOutput("lcurves"),verbatimTextOutput("number_rows")),
-             tabPanel("Allelic imbalance"),
-             tabPanel("Unmapped reads", box(width = "100%", background="teal",title = "Frequency of overrepresented sequences", div(style = 'overflow-x: scroll',withSpinner(plotOutput("overrepr")))), box(width = "100%", title = "Kmers", withSpinner(plotOutput("kmers"))),box(width = "100%", title = "Adapter content", withSpinner(plotOutput("adapt")))),
-             tabPanel("Summary plots", plotOutput("lcurves_groups"), plotOutput("all"))
+             tabPanel("Explore your data",  h2("Variable description"), uiOutput("headerVars"), div(style = 'overflow-x: scroll',withSpinner(plotOutput("variables"))) #,
+                      #verbatimTextOutput("mean"), br(),h2("Variable association"), uiOutput("varassoc"), withSpinner(plotOutput("boxplot")), verbatimTextOutput("stat_test")
+                      )
+             #,
+             #tabPanel("Coverage uniformity", 
+             #         h2("Preseq gc_extrap breadth of coverage inferences at different sequencing coverages (Daley & Smith, 2014)"),
+             #         downloadButton('downloadPreSeq', 'Download'),
+             #         plotOutput("PreSeq"), h2("Lorenz curves"), plotOutput("lcurves"),verbatimTextOutput("number_rows")),
+             #tabPanel("Allelic imbalance"),
+             #tabPanel("Summary plots", plotOutput("lcurves_groups"), plotOutput("all"))
             ) # close tabsetPanel
            #)# close mainPanel
           #) # close column

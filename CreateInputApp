@@ -4,7 +4,7 @@
 SamplesFile=$1
 path=$(dirname "$SamplesFile")
 
-printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "Sample" "Sequenced bases" "Original sequencing depth" "Bin size" "Delta" "% of unmapped reads" "% of reads mapped to the mitochondria" "Potential contaminants" "Breadth" "Autocorrelation" "Coefficient of variation" "Gini index" > ${path}/SingleCheck.txt
+printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "Sample" "Sequenced bases" "Analysis depth" "Bin size" "Delta" "% of unmapped reads" "% of reads mapped to the mitochondria" "Breadth" "Autocorrelation" "Coefficient of variation" "Gini coefficient" "MAD" "Potential contaminants"> ${path}/SingleCheck.txt
 while read sample 
 do
 name=$(basename $sample)

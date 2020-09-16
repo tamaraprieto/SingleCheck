@@ -21,9 +21,27 @@
             -f <int> flag of the reads to filter out
             -q <int>  mapping quality of the reads to analize
 	    -r <ref.fa> reference genome
-	    -d <REGEX> regular expresion  matching the lines starting by chromosome names which are diploid (default: \"^[1-9|X]\")
-            -m <REGEX> regular expresion matching the lines starting by the mitochondrial contig (default: \"^(MT|chrM)\" )
-        Note: the bam file must be indexed and fastq files must be .gz compressed.
+            -X include chromosome X in the analysis (only for human samples) 
+            -N do not perform downsampling. Extract measures from original file
+            -d downsampling sequencing depth. Ignore if -N (default: 0.1)
+            -s <ConstantMemory|HighAccuracy|Chained> downsampling strategy method.
+                Read Picard DownsampleSam documentation for details:
+                https://broadinstitute.github.io/picard/command-line-overview.html#DownsampleSam
+                Ignore if -N (default: ConstantMemory)
+	    -c <STRING> string containing all the names of the chromosomes you
+		want to analyze separated by vertical bars enclosed in single 
+		or double quotation marks. Ignore if your organism of study is
+		human. Sintax of regular expression allowed
+		examples:
+			'2|3|4|X'
+			'[1-9]'
+			'chr[1-9|Z]'
+			'NC87126|NC78623'
+			'NW_[0-9]*'
+            -m <STRING> mitochondrial contig name if different from MT or chrM.
+                Quotes are not required in this case
+        
+	Note: the bam file must be indexed and fastq files must be .gz compressed.
 	"
 
 	WSIZE=10000000
@@ -31,51 +49,73 @@
 	FLAGTOFILTEROUT=772
 	THREADS=3
 	MAPQUAL=20
-        DIPLOID_REGEX="^[1-9|X]"
-	MT_REGEX="^(MT|chrM)"
-        # Parameterize the following:
+	DIPLOID_REGEX="^(chr)*[1-9]"
+        MT_REGEX='^(MT|chrM)'
+        DOWNSAMPLE="YES"
 	downsampling_depth=0.1
-	#strategy=HighAccuracy # For downsampling 
-	strategy="ConstantMemory" # For downsampling
+	ds_strategy="ConstantMemory" # For downsampling
         DOWNSAMPLING="ImpreciseSeqDepthCalc" # For calculating SeqDepth
+        isanum='^[0-9]+$'
 
         # The : before the flags is for taking control of flags that are not in the list
-	while getopts ':hw:i:f:t:q:d:m:r::' option; do
+	while getopts ':hw:i:f:t:q:XNd:s:c:m:r::' option; do
 	  case "$option" in
 	    h) echo "$usage"
 	       exit
 	       ;;
 	    w) WSIZE=$OPTARG
-               isanum=^[0-9]+$                    
                if [[ ! $WSIZE =~ $isanum ]] || [[ $WSIZE -eq 0 ]]; then   
-               printf "\nError: -w must be a positive whole number higher than 0\n"
-	       echo "$usage" >&2 
-               exit 1
+                   printf "\nError: -w must be a positive whole number higher than 0\n"
+	           echo "$usage" >&2 
+                   exit 1
 	       fi
 	       ;;
             i) DELTA=$OPTARG
-               isanum=^[0-9]+$
                if [[ ! $DELTA =~ $isanum ]] || [[ $DELTA -eq 0 ]]; then
-               printf "\nError: -a must be a positive whole number higher than 0\n"
-               echo "$usage" >&2
-               exit 1
+                   printf "\nError: -a must be a positive whole number higher than 0\n"
+                   echo "$usage" >&2
+                   exit 1
                fi
                ;;
             f) FLAGTOFILTEROUT=$OPTARG
                ;;
             t) THREADS=$OPTARG
-               ;;
-            q) MAPQUAL=$OPTARG
-               isanum=^[0-9]+$
-               if [[ ! $MAPQUAL =~ $isanum ]]; then
-               printf "\nError: -q must be a positive whole number\n"
-               echo "$usage" >&2
-               exit 1
+               if [[ ! $THREADS =~ $isanum ]]; then
+                  printf "\nError: -t must be a positive whole number\n"
+                  echo "$usage" >&2
+                  exit 1
                fi
                ;;
-            d) DIPLOID_REGEX=$OPTARG
+            q) MAPQUAL=$OPTARG
+               if [[ ! $MAPQUAL =~ $isanum ]]; then
+               	  printf "\nError: -q must be a positive whole number\n"
+                  echo "$usage" >&2
+                  exit 1
+               fi
                ;;
-	    m) MT_REGEX=$OPTARG
+            N) DOWNSAMPLE="NO"
+	       ;;
+            d) downsampling_depth=$OPTARG
+               re='^[0-9]+([.][0-9]+)?$'
+	       if [[ ! $downsampling_depth =~ $re ]] ; then
+                   printf "\nError: -d must be a number\n"
+                   echo "$usage" >&2
+                   exit 1
+	       fi
+               ;;
+            s) ds_strategy=$OPTARG
+               strategies='ConstantMemory|HighAccuracy|Chained'
+               if [[ ! "$ds_strategy" =~ "$strategies" ]];then
+                   printf "\nError: $OPTARG is not a suitable downsampling strategy\n"
+                   echo "$usage" >&2
+                   exit 1
+               fi
+	       ;;
+            X) DIPLOID_REGEX="^(chr)*[1-9|X]"
+               ;;
+            c) DIPLOID_REGEX='^('$OPTARG')'
+               ;;
+	    m) MT_REGEX='^'${OPTARG}
                ;;
             r) REFERENCE=$OPTARG
                ;;
@@ -90,6 +130,7 @@
 	  esac
 	done
 	shift $((OPTIND - 1))
+
 
 
 if [ "$#" -gt 2 ]; then
@@ -141,8 +182,11 @@ elif [ "$#" -eq 2 ]; then
 	fi
 	NAME=$(echo $FASTQ1 | sed 's/_1.fastq.gz//')
 else
+        printf "\nYou must provide at least one BAM or FASTQ file as input\n" >&2
+        echo "$usage" >&2
 	exit 1
 fi
+
 
 ############################################################################
 #                        SET UP VARIABLES                                  #
@@ -156,7 +200,7 @@ else
     SCRIPTDIR=$(pwd -P)
 fi
 
-printf "\n\tSingleCheck -w %s -i %s -f %s -t %s -q %s %s\n\n" "$WSIZE" "$DELTA" "$FLAGTOFILTEROUT" "$THREADS" "$MAPQUAL" "$FILE"
+###//////////// PRINT A MESSAGE WITH ALL THE VARIABLES //////////
 
 ############################################################################
 #                        LOAD MODULES                                      #
@@ -167,6 +211,7 @@ printf "\n\tSingleCheck -w %s -i %s -f %s -t %s -q %s %s\n\n" "$WSIZE" "$DELTA" 
 	module load gcc/6.4.0 R/3.6.3 2> /dev/null
         module load miniconda3/4.8.2 2> /dev/null
         module load gcccore/6.4.0 bedtools/2.28.0 2> /dev/null
+        #module load gcccore/6.4.0 bwa-mem2/2.0 2> /dev/null
         module load gcc/6.4.0 bwa/0.7.17 2> /dev/null
 	module load picard/2.18.14 2> /dev/null
         source activate /mnt/netapp1/posadalab/APPS/CommonCondaEnvironments/mosdepth 2> /dev/null
@@ -181,11 +226,12 @@ if [ "$METHOD" == "Paired-end" ] || [ "$METHOD" == "Single-end" ]; then
         fai_index=$(echo $REFERENCE | sed 's/.fa/.fai/')
         bwa_index=$(echo $REFERENCE | sed 's/.fa/.fa.ann/')
         if [ -z $REFERENCE ] || [ ! -f $REFERENCE ] || [ ! -f $fai_index ] || [ ! -f $bwa_index ];then
-             printf "\nCheck that your reference exists and it has been properly indexed\n" >&2
-             echo "$usage" >&2
+             printf "\nCheck that your reference exists and it has been properly indexed!\n" >&2
              exit 1
         fi
-	bwa mem -t $THREADS $REFERENCE \
+
+	bwa mem \
+		-t $THREADS $REFERENCE \
 		$FASTQ1 $FASTQ2 | \
 		samtools sort -@$THREADS \
 		-o ${NAME}.bam -
@@ -252,24 +298,26 @@ rm ${NAME}.primary.bam
 #probability=$(awk -v ds_d=$downsampling_depth -v rs_d=$sequencing_depth 'BEGIN{print ds_d/rs_d}') 
 probability=`bc -l <<< "scale=10; $downsampling_depth / $sequencing_depth"`
 
-if [[ ! -z $(awk -v prob=$probability 'BEGIN{if (prob > 1) print "Lowest sequencing than downsampling selected"}') ]]
+if [[ ! -z $(awk -v prob=$probability 'BEGIN{if (prob > 1) print "Lowest sequencing than downsampling selected"}') ]] || [[ "$DOWNSAMPLE" = "NO" ]]
 then
 	ln -s ${NAME}.bam ${NAME}.${downsampling_depth}X.bam
+        DEPTH=$sequencing_depth
 else
-echo "Downsampling following "${strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X."
+echo "Downsampling following "${ds_strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X."
 	# Reads from the same template (read-pairs,secondary and supplementary) are all either kept or discarded as a unit, with the goal of retaining reads from PROBABILITY * input templates. The results will contain approximately PROBABILITY * input reads, however for very small PROBABILITIES this may not be the case.
 # Take the exponential of the number
 	num=$(printf %e ${probability} | fold -w1 | tail -n 1)
 	accuracy=$(awk -v num=$num 'BEGIN{print 0.01*10^-num}')
-	echo "Downsampling following "${strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X. Downsampling probability: "$probability". Accuracy: "${accuracy}
+	echo "Downsampling following "${ds_strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X. Downsampling probability: "$probability". Accuracy: "${accuracy}
 	java -jar $EBROOTPICARD/picard.jar DownsampleSam \
         	INPUT=${NAME}.bam \
         	OUTPUT=${NAME}.${downsampling_depth}X.bam \
         	RANDOM_SEED=1 \
         	PROBABILITY=${probability} \
-        	STRATEGY=$strategy \
+        	STRATEGY=$ds_strategy \
         	CREATE_INDEX=true \
         	ACCURACY=$accuracy
+        DEPTH=$downsampling_depth
 fi
 
 echo "> Running mosdepth"
@@ -358,8 +406,9 @@ MT_mappedreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | 
 mt_perc_totalreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | awk -v mt=$MT_mappedreads '{sum+=($3+$4)}END{print mt/sum*100}')
 unmapped_perc_totalreads=$(samtools idxstats ${NAME}.${downsampling_depth}X.primary.bam | \
         awk '{mapped+=$3;unmapped+=$4}END{print unmapped/(unmapped+mapped)*100}')
-breadth=$(awk -v gl=$genome_length '{if ($1==0){sum+=$3}}END{print (1 - sum/gl)*100}' ${NAME}.${DELTA}.shiftedcov.txt)
-class=$(awk '{if ($1 !~ "{") print $0}' ${NAME}.genus.tab | grep -v "^@" | awk '{if ($5 >= 98) print $1}' | tr -s '\n' ',' | sed 's/,$/\n/')
+#breadth=$(awk -v gl=$genome_length '{if ($1==0){sum+=$3}}END{print (1 - sum/gl)*100}' ${NAME}.${DELTA}.shiftedcov.txt)
+breadth=$(awk '{if ($1==0){sum+=$3}else if ($1!="NA"){rest+=$3}}END{print 100 - ((sum/(rest+sum))*100)}' ${NAME}.${DELTA}.shiftedcov.txt)
+class=$(awk '{if ($1 !~ "{") print $0}' ${NAME}.genus.tab | grep -v "^@" | awk '{print $1"-"$2"-"$3"-"$4"-"$5}' | tr -s '\n' ',' | sed 's/,$/\n/')
 SAMPLE=$(basename $NAME)
 echo $SAMPLE
 WORKDIR=$(dirname "$NAME")
@@ -367,6 +416,7 @@ echo $WORKDIR
 autocorrelation=$(awk '{print $2}' ${WORKDIR}/Autocorrelation.${SAMPLE}.${DELTA}.txt)
 gini=$(awk '{print $2}' ${WORKDIR}/Gini.${SAMPLE}.${WSIZE}.txt)
 CV=$(awk '{print $2}' ${WORKDIR}/CV.${SAMPLE}.${WSIZE}.txt)
+MAD=$(awk '{print $2}' ${WORKDIR}/MAD.${SAMPLE}.${WSIZE}.txt)
 
 rm ${NAME}.${downsampling_depth}X.bam
 rm ${NAME}.${downsampling_depth}X.bai
@@ -386,8 +436,9 @@ rm ${NAME}.map
 rm ${WORKDIR}/CV.${SAMPLE}.${WSIZE}.txt
 rm ${WORKDIR}/Gini.${SAMPLE}.${WSIZE}.txt
 rm ${WORKDIR}/Autocorrelation.${SAMPLE}.${DELTA}.txt
+rm  ${WORKDIR}/MAD.${SAMPLE}.${WSIZE}.txt
 
-printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$SAMPLE" "$raw_bases" "$sequencing_depth" "$WSIZE" "$DELTA" "$unmapped_perc_totalreads" "$mt_perc_totalreads" "$class" "$breadth" "$autocorrelation" "$CV" "$gini" > ${NAME}.SingleCheck.txt
+printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$SAMPLE" "$raw_bases" "$DEPTH" "$WSIZE" "$DELTA" "$unmapped_perc_totalreads" "$mt_perc_totalreads" "$breadth" "$autocorrelation" "$CV" "$gini" "$MAD" "$class" > ${NAME}.SingleCheck.txt
 
 
 echo "> Finished!"

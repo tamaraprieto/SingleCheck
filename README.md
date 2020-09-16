@@ -1,6 +1,6 @@
 # SingleCheck
 
-SingleCheck is program for performing quality control of single-cell DNA-seq libraries
+SingleCheck is a program for performing quality control of single-cell DNA-seq libraries
 
 ## Installation
 
@@ -17,10 +17,16 @@ Dependencies:
 SingleCheck R1.T15.bam 
 ```
 
+## Output file
+
+
+##  visualization
+
+The program generates a text file with with the following columns: 
+
 ```bash
-CreateInputApp.sh
+CreateInputApp.sh <Samples.txt>
 ```
 
-## Output files
 
 ## How to cite

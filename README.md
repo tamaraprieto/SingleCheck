@@ -2,7 +2,7 @@
 
 SingleCheck is a program for performing quality control of single-cell DNA-seq libraries
 
-![](Workflow-SingleCheck.png)
+![](Workflow-SingleCheck.png  =100x)
 
 ## Installation
 

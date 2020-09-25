@@ -9,8 +9,8 @@ dashboardPage(skin = "black",
   dashboardHeader(title = "SingleCheck"),
   dashboardSidebar(
     sidebarMenu(
-      menuItem("Welcome", tabName = "welcome", icon = icon("smile-o")),
-      menuItem("Input and parameters", tabName = "input", icon = icon("sliders")),
+      #menuItem("Welcome", tabName = "welcome", icon = icon("smile-o")),
+      menuItem("Welcome", tabName = "input", icon = icon("sliders")),
       menuItem("Results", tabName = "results", icon = icon("pie-chart"))
     ) # close sidebarmenu
   ),
@@ -19,17 +19,19 @@ dashboardPage(skin = "black",
       tags$link(rel = "stylesheet", type = "text/css", href = "custom.css")
     ),
     tabItems(
-      tabItem(tabName= "welcome",   
-              fluidRow(
-                column(12, offset=0,
-                    includeMarkdown("../README.md")#,
-                #    ) # close box
-                ) # close column
-              ) # close fluidrow
-      ), # close tabItem welcome
+      #tabItem(tabName= "welcome",   
+      #        fluidRow(
+      #          column(12, offset=0,
+      #              includeMarkdown("../README.md")#,
+      #          #    ) # close box
+      #          ) # close column
+      #        ) # close fluidrow
+      #), # close tabItem welcome
       tabItem(tabName= "input",   
               fluidRow(
                 column(12, offset=0,
+                h1("", menuItem("", icon = icon("github"), 
+                         href = "https://github.com/tamaraprieto/SingleCheck")),
                 ##h6("Introduce the values, press Apply Changes and then inspect the results by surfing the tabs"),
                 #box(title = "Introduce google sheet information", color = "olive", solidHeader = TRUE,
                 ## Gsheet link

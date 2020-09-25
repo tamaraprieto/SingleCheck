@@ -369,7 +369,7 @@ echo "> Calculating gini and cv"
         awk '{print $2"\t"$1}' | sort -n -k1,1 \
         > ${NAME}.${WSIZE}.freqs.txt
 
-Rscript ${SCRIPTDIR}/src/GiniIndex.R ${NAME}.${WSIZE}
+Rscript ${SCRIPTDIR}/src/GiniIndex.R ${NAME}.${WSIZE} $WSIZE
 Rscript ${SCRIPTDIR}/src/CoefficientOfVariation.R ${NAME}.${WSIZE}
 
 echo "> Calculating autocorrelation"

@@ -1,4 +1,5 @@
 #!/usr/bin/env Rscript
+library(tidyr)
 library(dplyr)
 args            = commandArgs(TRUE)
 #countsFile = paste(args[2],"/",args[1],".",args[3],".counts.txt" , sep ="")
@@ -7,8 +8,12 @@ genomecov = read.table(countsFile,stringsAsFactors = FALSE, header = FALSE,colCl
 #colnames(genomecov) = c("depth", "count", "len")
 colnames(genomecov) = c("depth", "count")
 
+window_size=as.numeric(args[2])
+
 # calculate the cumulative sum of column 2
-genomecov = genomecov %>% mutate(sumcount = cumsum(as.numeric(count)))
+genomecov = genomecov %>%
+	dplyr::mutate(sumcount = cumsum(as.numeric(count))) %>%
+        dplyr::mutate(mutate(depth=round(depth*window_size))) # this line is to avoid problems with floats of averaging 
 
 # This two lines are the same
 lengthSeq = sum(genomecov$count)

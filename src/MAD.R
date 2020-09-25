@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # Calculate Coefficient of Variation from frequency table
-library(tidyverse)
+library(tidyr)
 library(dplyr)
 library(matrixStats)
 args            = commandArgs(TRUE)
@@ -15,7 +15,7 @@ lengthSeq = sum(genomecov$count)
 meanDepth = sum(as.numeric(genomecov$depth)*as.numeric(genomecov$count))/lengthSeq
 
 genomecov = genomecov  %>% drop_na("depth_fwd") %>% 
-		       mutate( c = depth-depth_fwd/meanDepth )
+		       mutate( c = (depth-depth_fwd)/meanDepth )
 
 median_diffs = weightedMedian(genomecov$c,genomecov$count, ties = "weighted")
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env Rscript
 # Calculate Coefficient of Variation from frequency table
 
+library(tidyr)
 library(dplyr)
 args            = commandArgs(TRUE)
 #countsFile = paste(args[2],"/",args[1],".",args[3],".counts.txt" , sep ="")

@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-library(tidyverse)
+library(tidyr)
 library(dplyr)
 #library(matrixStats)
 args            = commandArgs(TRUE)

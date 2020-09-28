@@ -13,7 +13,7 @@ window_size=as.numeric(args[2])
 # calculate the cumulative sum of column 2
 genomecov = genomecov %>%
 	dplyr::mutate(sumcount = cumsum(as.numeric(count))) %>%
-        dplyr::mutate(mutate(depth=round(depth*window_size))) # this line is to avoid problems with floats of averaging 
+        dplyr::mutate(depth=round(depth*window_size)) # this line is to avoid problems with floats of averaging 
 
 # This two lines are the same
 lengthSeq = sum(genomecov$count)
@@ -24,7 +24,9 @@ meanDepth = sum(as.numeric(genomecov$depth)*as.numeric(genomecov$count))/lengthS
 
 first_formula_term = 2/(lengthSeq^2*(meanDepth))
 
-genomecov = genomecov %>% rowwise() %>% mutate(first = ((sum(0:sumcount))-sum(0:(sumcount-count)))) %>% mutate(tosum=first*(depth-meanDepth))
+genomecov = genomecov %>% rowwise() %>%
+	dplyr::mutate(first = ((sum(0:sumcount))-sum(0:(sumcount-count)))) %>%
+	dplyr::mutate(tosum=first*(depth-meanDepth))
 
 second_formula_term = sum(genomecov$tosum)
 gini = first_formula_term * second_formula_term

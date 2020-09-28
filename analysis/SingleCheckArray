@@ -97,6 +97,8 @@ else
     SCRIPTDIR=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
 fi
 
+SCRIPTDIR=${SCRIPTDIR}"/../"
+
 printf "\n\t%s -w %s -i %s -f %s -t %s -q %s %s.bam\n\n" "$0" "$WSIZE" "$DELTA" "$FLAGTOFILTEROUT" "$THREADS" "$MAPQUAL" "$NAME"
 
 ############################################################################
@@ -187,7 +189,7 @@ echo "> Calculating gini and cv"
         awk '{print $2"\t"$1}' | sort -n -k1,1 \
         > ${NAME}.${WSIZE}.freqs.txt
 
-	Rscript ${SCRIPTDIR}/src/GiniIndex.R ${NAME}.${WSIZE}
+	Rscript ${SCRIPTDIR}/src/GiniIndex.R ${NAME}.${WSIZE} ${WSIZE}
 	Rscript ${SCRIPTDIR}/src/CoefficientOfVariation.R ${NAME}.${WSIZE}
 
 echo "> Calculating autocorrelation"

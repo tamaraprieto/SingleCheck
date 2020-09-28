@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # SET UP VARIABLES
-DEPTH="20X"
+DEPTH="0.1X"
 DATASET=HUANG
 SUFFIX=".sorted.${DEPTH}"
 

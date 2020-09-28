@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # SET UP VARIABLES
-DEPTH="30X"
+DEPTH="0.1X"
 DATASET=WANG
 SUFFIX=".${DEPTH}.filtered"
 

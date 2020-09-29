@@ -15,14 +15,14 @@
 	
 	options:
 	    -h  show this help text
-	    -w <int> set the window size for gini index, coefficient of variation and MAD (default: 10000)
-            -i <int> set increment/delta for autocorrelation (default: 1000)
+	    -w <int> set the window size for gini coefficient, coefficient of variation and MAD (default: 10000000)
+            -i <int> set increment/Delta for autocorrelation (default: 1000)
             -t <int> number of threads
             -f <int> flag of the reads to filter out
-            -q <int>  mapping quality of the reads to analize
+            -q <int>  mapping quality of the reads to analyze
 	    -r <ref.fa> reference genome
             -X include chromosome X in the analysis (only for human samples) 
-            -N do not perform downsampling. Extract measures from original file
+            -N do not perform downsampling. Extract statistics from original file
             -d downsampling sequencing depth. Ignore if -N (default: 0.1)
             -s <ConstantMemory|HighAccuracy|Chained> downsampling strategy method.
                 Read Picard DownsampleSam documentation for details:

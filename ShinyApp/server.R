@@ -1,13 +1,12 @@
 library(shiny)
 library(shinydashboard)
-library(DT)
-library(ggplot2)
-library(reshape2)
-library(data.table)
-library(htmltools)
-library(grid)
 library(shinycssloaders)
+library(DT)
+library(data.table)
+library(ggplot2)
 library(plotly)
+#library(htmltools)
+
 
 
 shinyServer(function(input, output) {
@@ -16,9 +15,8 @@ shinyServer(function(input, output) {
 qc <- reactive ({
   qc_table<-input$qc
   qc<-fread(qc_table$datapath, header=TRUE, sep = "\t") %>% 
-    dplyr::select(-`Bin size`, -Delta, -MAD) %>%
+    #dplyr::select(-`Bin size`, -Delta) %>%
     dplyr::rename(`Breadth (%)`= Breadth)
-  qc$`Potential contaminants` <- gsub(",$","",gsub("-[^,]+","",gsub("[A-z]+-\\(class\\)\\{class\\}-[0-9|\\.]+-[0-9|\\.]+-[0-9|\\.]+,*" , "",qc$`Potential contaminants`)))
   qc
 })
 
@@ -43,6 +41,8 @@ output$varassoc <- renderUI({
 # Create data.table
 dt <- reactive({
   qc_mod <- qc()
+  qc_mod$`Potential contaminants` <- gsub(",$","",gsub("-[^,]+","",gsub("[A-z]+-\\(class\\)\\{class\\}-[0-9|\\.]+-[0-9|\\.]+-[0-9|\\.]+,*" , "",qc_mod$`Potential contaminants`)))
+  
   dt<-DT::datatable(
     qc_mod,
     rownames = FALSE,
@@ -85,47 +85,105 @@ assoc_index <- reactive ({
 
 
 # Plot variables from Stats
-output$variables <- renderPlot({
-    if (col_index() == (which(colnames(qc()) == "Potential contaminants"))) {
-      
-      qc_bacteria <- qc() %>%
-        dplyr::slice(row_index()) %>%
-        dplyr::select(c(1,col_index())) %>%
-        transform(`Potential contaminants` = strsplit(`Potential contaminants`, ",")) %>%
-        tidyr::unnest(`Potential contaminants`) %>%
-        tidyr::separate(`Potential contaminants`,into=c("Genus","Abundancy","CovergaeDepthGenomes","Reads","Similarity"),sep="-") %>%
-        dplyr::mutate( Abundancy = as.numeric(Abundancy)) %>%
-        dplyr::mutate( Similarity = as.numeric(Similarity)) %>%
-        tidyr::drop_na(Abundancy)
-        
-      p<-ggplot(qc_bacteria) +
-        geom_point(aes(x = Sample, y = Genus, size= Abundancy, color=Similarity)) +
-        labs(x="Sample",y="Potential contaminants",size="Relative abundancy  \n(calculated from unmapped reads\nwithin the orginal BAM file)", color="Similarity with\ngene markers") +
-        theme_linedraw() +
-        scale_color_gradient2(low="red", mid="yellow", high="forestgreen", midpoint=95) + # , limits=c(90,100)) +
-        theme(axis.text.x = element_text(angle = 90),
-              legend.position = "bottom")
-      p
-      
-      } else if (col_index() == 1) {
-        list()
-      } else {
-        qc_common <- qc() %>%
-          dplyr::slice(row_index()) %>%
-          dplyr::select(c(1,col_index())) %>%
-          dplyr::rename(value=colnames(qc())[col_index()])
-        p<-ggplot(qc_common,aes(x = Sample, y = value)) +
-          geom_point() +
-          geom_line() +
-          labs(x="Sample", y=colnames(qc())[col_index()]) +
-          scale_y_continuous(trans = 'log10') +
-          theme_linedraw() +
-          theme(axis.text.x = element_text(angle = 90)) 
-        p 
-        
-      }
+#output$variables <- renderPlot({
+#    if (col_index() == (which(colnames(qc()) == "Potential contaminants"))) {
+#      
+#      qc_bacteria <- qc() %>%
+#        dplyr::slice(row_index()) %>%
+#        dplyr::select(c(1,col_index())) %>%
+#        transform(`Potential contaminants` = strsplit(`Potential contaminants`, ",")) %>%
+#        tidyr::unnest(`Potential contaminants`) %>%
+#        tidyr::separate(`Potential contaminants`,into=c("Genus","Abundancy","CoverageDepthGenomes","Reads","Similarity"),sep="-") %>%
+#        dplyr::mutate( Abundancy = as.numeric(Abundancy)) %>%
+#        dplyr::mutate( Similarity = as.numeric(Similarity)) %>%
+#        tidyr::drop_na(Abundancy) %>%
+#        as.data.frame()
+#        
+#      p<-ggplot(qc_bacteria) +
+#        geom_point(aes(x = Sample, y = Genus, size= Abundancy, color=Similarity)) +
+#        labs(x="Sample",y="Potential contaminants",size="Relative abundancy  \n(calculated from unmapped reads\nwithin the orginal BAM file)", color="Similarity with\ngene markers") +
+#        theme_linedraw() +
+#        scale_color_gradient2(low="red", mid="yellow", high="forestgreen", midpoint=95) + # , limits=c(90,100)) +
+#        theme(axis.text.x = element_text(angle = 90),
+#              legend.position = "bottom")
+#      p
+#      
+#      } else if (col_index() == 1) {
+#        list()
+#      } else {
+#        qc_common <- qc() %>%
+#          dplyr::slice(row_index()) %>%
+#          dplyr::select(c(1,col_index())) %>%
+#          dplyr::rename(value=colnames(qc())[col_index()])
+#        p<-ggplot(qc_common,aes(x = Sample, y = value)) +
+#          geom_point() +
+#          geom_line() +
+#          labs(x="Sample", y=colnames(qc())[col_index()]) +
+#          scale_y_continuous(trans = 'log10') +
+#          theme_linedraw() +
+#          theme(axis.text.x = element_text(angle = 90)) 
+#        p 
+#        
+#      }
+#}
+#)
+
+
+# Plot variables from Stats in PLOTLY
+output$plotlyvariables <- renderPlotly({
+  if (col_index() == (which(colnames(qc()) == "Potential contaminants"))) {
+    
+    qc_bacteria <- qc() %>%
+      dplyr::slice(row_index()) %>%
+      dplyr::select(c(1,`% of unmapped reads`,col_index())) %>%
+      transform(`Potential contaminants` = strsplit(`Potential contaminants`, ",")) %>%
+      tidyr::unnest(`Potential contaminants`) %>%
+      tidyr::separate(`Potential contaminants`,into=c("Genus","Abundancy","CoverageDepthGenomes","Reads","Similarity"),sep="-") %>%
+      dplyr::mutate( Abundancy = as.numeric(Abundancy)) %>%
+      dplyr::mutate( Similarity = as.numeric(Similarity)) %>%
+      tidyr::drop_na(Abundancy) %>%
+      dplyr::rename(`Relative abundance`=Abundancy)
+    
+   # p<-ggplot(qc_bacteria) +
+   #   geom_point(aes(x = Sample, y = Genus, size= `Relative abundance`, color=Similarity)) +
+   #   labs(x="Sample",y="Potential contaminants",size="Relative abundancy  \n(calculated from unmapped reads\nwithin the orginal BAM file)", color="Similarity with\ngene markers") +
+   #   #theme_linedraw() +
+   #   scale_color_gradient2(low="red", mid="yellow", high="forestgreen", midpoint=95) + # , limits=c(90,100)) +
+   #   theme(axis.text.x = element_text(angle = 90),
+   #         legend.position = "bottom")
+   # 
+    
+    p<-ggplot(qc_bacteria) +
+      geom_col(aes(x = Sample, y = `Relative abundance`, fill=Genus, text = paste("Similarity:", Similarity, "<br>", "% unmapped reads:",round(`% of unmapped reads`,2)))) +
+      labs(x="Sample",y="Relative abundance of contaminants\n in unmapped reads",fill="Genus") +
+      theme(axis.text.x = element_text(angle = 90),
+            legend.position = "bottom")
+    
+
+    ggplotly(p)
+
+    
+  } else if (col_index() == 1) {
+    list()
+  } else {
+    qc_common <- qc() %>%
+      dplyr::slice(row_index()) %>%
+      dplyr::select(c(1,col_index())) %>%
+      dplyr::rename(value=colnames(qc())[col_index()])
+    p<-ggplot(qc_common,aes(x = Sample, y = value)) +
+      geom_point() +
+      geom_line() +
+      labs(x="Sample", y=colnames(qc())[col_index()]) +
+      scale_y_continuous(trans = 'log10') +
+      #theme_linedraw() +
+      theme(axis.text.x = element_text(angle = 90)) 
+    ggplotly(p) 
+    
+  }
 }
 )
+
+
 
 
 # Download summary table

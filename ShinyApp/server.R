@@ -155,7 +155,7 @@ output$plotlyvariables <- renderPlotly({
     
     p<-ggplot(qc_bacteria) +
       geom_col(aes(x = Sample, y = `Relative abundance`, fill=Genus, text = paste("Similarity:", Similarity, "<br>", "% unmapped reads:",round(`% of unmapped reads`,2)))) +
-      labs(x="Sample",y="Relative abundance of contaminants\n in unmapped reads",fill="Genus") +
+      labs(x="Sample",y="Relative abundance of contaminants\nestimated from unmapped reads",fill="Genus") +
       theme(axis.text.x = element_text(angle = 90),
             legend.position = "bottom")
     

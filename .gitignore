@@ -12,6 +12,8 @@ core.*
 *.idx
 *.RData
 trash
+CRC02-Phylocancer12
 example
+CRC02-Phylocancer12
 .Rproj.user
 *.Rproj

@@ -197,7 +197,8 @@ then
     SCRIPT=$(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}' | awk '{print $1}')
     SCRIPTDIR=$(dirname $SCRIPT)
 else
-    SCRIPTDIR=$(pwd -P)
+    SCRIPT=$0
+    SCRIPTDIR=$(dirname $SCRIPT)	
 fi
 
 ###//////////// PRINT A MESSAGE WITH ALL THE VARIABLES //////////
@@ -301,6 +302,7 @@ probability=`bc -l <<< "scale=10; $downsampling_depth / $sequencing_depth"`
 if [[ ! -z $(awk -v prob=$probability 'BEGIN{if (prob > 1) print "Lowest sequencing than downsampling selected"}') ]] || [[ "$DOWNSAMPLE" = "NO" ]]
 then
 	ln -s ${NAME}.bam ${NAME}.${downsampling_depth}X.bam
+	samtools index ${NAME}.${downsampling_depth}X.bam
         DEPTH=$sequencing_depth
 else
 echo "Downsampling following "${ds_strategy}" strategy. From "${sequencing_depth}"X to "${downsampling_depth}"X."
@@ -418,8 +420,7 @@ gini=$(awk '{print $2}' ${WORKDIR}/Gini.${SAMPLE}.${WSIZE}.txt)
 CV=$(awk '{print $2}' ${WORKDIR}/CV.${SAMPLE}.${WSIZE}.txt)
 MAD=$(awk '{print $2}' ${WORKDIR}/MAD.${SAMPLE}.${WSIZE}.txt)
 
-rm ${NAME}.${downsampling_depth}X.bam
-rm ${NAME}.${downsampling_depth}X.bai
+rm ${NAME}.${downsampling_depth}X.ba*
 rm ${NAME}.${downsampling_depth}X.primary.bam
 rm ${NAME}.${downsampling_depth}X.primary.bam.bai
 rm ${NAME}.${DELTA}.shiftedcov.txt

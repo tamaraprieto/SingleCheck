@@ -28,7 +28,7 @@
 
 ## Usage
 
-```bash
+```
 SingleCheck [options] <in.bam|in.fastq.gz> <in2.fastq.gz>
 
 options:
@@ -59,7 +59,7 @@ options:
 
 Example
 ```bash
-	SingleCheck test/R1.T15.bam
+SingleCheck test/R1.T15.bam
 ```
 
 ##  Output and interpretation

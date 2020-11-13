@@ -81,7 +81,7 @@ The program generates a text file with the following columns:
 * Potential contaminants (Metaphyler genus file information condensed)
 
 
-For comparing results from the different single cells simultaneously, we created a shiny app that it is available at xxxxxxxxxxxx
+For comparing results from the different single cells simultaneously, we created a shiny app which can be run from Rstudio.
 
 In order to create the input for the app you must run the following line:
 
@@ -100,6 +100,7 @@ Then, you can load the output on the Input tab in the menu panel of the app.
 
 ## Current issues
 
+<!--
 ## FAQ
 
 1. Can I use SingleCheck for performing quality control of single-cell RNA-seq data?
@@ -109,6 +110,6 @@ We have not tested the program for this aim so we do not provide support for thi
 2. Should I remove duplicates from my data?
 
 We think is better to keep the duplicates for quality control the single cells.
-
+-->
 
 <!-- ## How to cite -->

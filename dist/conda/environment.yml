@@ -1,0 +1,22 @@
+name: SingleCheck
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.6
+  # conda packages
+  - bwa-mem2                    # bwma-mem not available
+  - picard
+  - mosdepth
+  - bedtools
+  - samtools
+  - r-tidyr
+  - r-dplyr
+  - r-matrixstats
+  - r-shiny
+  - r-shinydashboard
+  - r-shinycssloaders
+  - r-dt
+  - r-data.table
+  - r-ggplot2
+  - r-plotly

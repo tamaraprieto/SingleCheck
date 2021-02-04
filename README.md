@@ -24,7 +24,17 @@
   * data.table
   * ggplot2
   * plotly
+  
+## Installation
 
+All dependencies installation is automated in conda through virtual environment definition sited on `dist/conda/environment.yml`. To create it use the next command:
+```bash
+conda create env -f dist/conda/environment.yml
+```
+The created environment is called *SingleCheck*, and can be enabled by using 
+```bash
+conda activate SingleCheck
+```
 
 ## Usage
 
